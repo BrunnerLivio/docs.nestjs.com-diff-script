@@ -1,0 +1,32 @@
+
+<div class="content" #contentReference>
+  <div class="github-links">
+    <a
+      href="https://github.com/nestjs/docs.nestjs.com/edit/master/content/websockets/interceptors.md"
+      aria-label="Suggest Edits"
+      title="Suggest Edits"
+    >
+      <i class="material-icons" aria-hidden="true" role="img">mode_edit</i>
+    </a>
+  </div>
+  <h3 id="interceptors">Interceptors</h3>
+<p>There is no difference between <a routerLink="/interceptors">regular interceptors</a> and the web sockets interceptors. Here is an example that makes use of a manually instantiated method-scoped interceptor (class-scoped works too):</p>
+
+<span class="filename">
+<app-tabs #app289878ef6815485a95343cab2afdf8a250fe0d6b></app-tabs>
+</span><pre [class.hide]="app289878ef6815485a95343cab2afdf8a250fe0d6b.isJsActive"><code class="language-typescript">
+@UseInterceptors(new TransformInterceptor())
+@SubscribeMessage(&#39;events&#39;)
+handleEvent(client: Client, data: unknown): WsResponse&lt;unknown&gt; &#123;
+  const event = &#39;events&#39;;
+  return &#123; event, data &#125;;
+&#125;</code></pre>
+<pre [class.hide]="!app289878ef6815485a95343cab2afdf8a250fe0d6b.isJsActive"><code class="language-typescript">
+@UseInterceptors(new TransformInterceptor())
+@SubscribeMessage(&#39;events&#39;)
+handleEvent(client, data) &#123;
+  const event = &#39;events&#39;;
+  return &#123; event, data &#125;;
+&#125;</code></pre>
+</div>
+

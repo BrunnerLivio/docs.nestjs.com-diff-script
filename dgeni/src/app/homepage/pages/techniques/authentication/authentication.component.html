@@ -1,0 +1,747 @@
+
+<div class="content" #contentReference>
+  <div class="github-links">
+    <a
+      href="https://github.com/nestjs/docs.nestjs.com/edit/master/content/techniques/authentication.md"
+      aria-label="Suggest Edits"
+      title="Suggest Edits"
+    >
+      <i class="material-icons" aria-hidden="true" role="img">mode_edit</i>
+    </a>
+  </div>
+  <h3 id="authentication">Authentication</h3>
+<p>Authentication is an <strong>essential</strong> part of most applications. There are many different approaches and strategies to handle authentication. The approach taken for any project depends on its particular application requirements. This chapter presents several approaches to authentication that can be adapted to a variety of different requirements.</p>
+<p><a target='_blank' href="https://github.com/jaredhanson/passport">Passport</a> is the most popular node.js authentication library, well-known by the community and successfully used in many production applications. It&#39;s straightforward to integrate this library with a <strong>Nest</strong> application using the <code>@nestjs/passport</code> module. At a high level, Passport executes a series of steps to:</p>
+<ul>
+<li>Authenticate a user by verifying their &quot;credentials&quot; (such as username/password, JSON Web Token (<a target='_blank' href="https://jwt.io/">JWT</a>), or identity token from an Identity Provider)</li>
+<li>Manage authenticated state (by issuing a portable token, such as a JWT, or creating an <a target='_blank' href="https://github.com/expressjs/session">Express session</a>)</li>
+<li>Attach information about the authenticated user to the <code>Request</code> object for further use in route handlers</li>
+</ul>
+<p>Passport has a rich ecosystem of <a target='_blank' href="http://www.passportjs.org/packages/">strategies</a> that implement various authentication mechanisms. While simple in concept, the set of Passport strategies you can choose from is large and presents a lot of variety. Passport abstracts these varied steps into a standard pattern, and the <code>@nestjs/passport</code> module wraps and standardizes this pattern into familiar Nest constructs.</p>
+<p>In this chapter, we&#39;ll implement a complete end-to-end authentication solution for a RESTful API server using these powerful and flexible modules. You can use the concepts described here to implement any Passport strategy to customize your authentication scheme. You can follow the steps in this chapter to build this complete example. You can find a repository with a completed sample app <a target='_blank' href="https://github.com/nestjs/nest/tree/master/sample/19-auth-jwt">here</a>.</p>
+<h4 appAnchor id="authentication-requirements"><span>Authentication Requirements</span></h4>
+<p>Let&#39;s flesh out our requirements. For this use case, clients will start by authenticating with a username and password. Once authenticated, the server will issue a JWT that can be sent as a <a target='_blank' href="https://tools.ietf.org/html/rfc6750">bearer token in an authorization header</a> on subsequent requests to prove authentication. We&#39;ll also create a protected route that is accessible only to requests that contain a valid JWT.</p>
+<p>We&#39;ll start with the first requirement: authenticating a user. We&#39;ll then extend that by issuing a JWT. Finally, we&#39;ll create a protected route that checks for a valid JWT on the request.</p>
+<p>First we need to install the required packages. Passport provides a strategy called <a target='_blank' href="https://github.com/jaredhanson/passport-local">passport-local</a> that implements a username/password authentication mechanism, which suits our needs for this portion of our use case.</p>
+<pre><code class="language-bash">
+$ npm install --save @nestjs/passport passport passport-local</code></pre>
+<blockquote class="
+Warning "><strong>Notice</strong> For <strong>any</strong> Passport strategy you choose, you&#39;ll always need the <code>@nestjs/passport</code> and <code>passport</code> packages. Then, you&#39;ll need to install the strategy-specific package (e.g., <code>passport-jwt</code> or <code>passport-local</code>) that implements the particular authentication strategy you are building.
+</blockquote>
+<h4 appAnchor id="implementing-passport-strategies"><span>Implementing Passport strategies</span></h4>
+<p>We&#39;re now ready to implement the authentication feature. We&#39;ll start with an overview of the process used for <strong>any</strong> Passport strategy. It&#39;s helpful to think of Passport as a mini framework in itself. The elegance of the framework is that it abstracts the authentication process into a few basic steps that you customize based on the strategy you&#39;re implementing. It&#39;s like a framework because you configure it by supplying customization parameters (as plain JSON objects) and custom code in the form of callback functions, which Passport calls at the appropriate time. The <code>@nestjs/passport</code> module wraps this framework in a Nest style package, making it easy to integrate into a Nest application. We&#39;ll use <code>@nestjs/passport</code> below, but first let&#39;s consider how <strong>vanilla Passport</strong> works.</p>
+<p>In vanilla Passport, you configure a strategy by providing two things:</p>
+<ol>
+<li>A set of options that are specific to that strategy. For example, in a JWT strategy, you might provide a secret to sign tokens.</li>
+<li>A &quot;verify callback&quot;, which is where you tell Passport how to interact with your user store (where you manage user accounts). Here, you verify whether a user exists (and/or create a new user), and whether their credentials are valid. The Passport library expects this callback to return a full user if the validation succeeds, or a null if it fails (failure is defined as either the user is not found, or, in the case of passport-local, the password does not match).</li>
+</ol>
+<p>With <code>@nestjs/passport</code>, you configure a Passport strategy by extending the <code>PassportStrategy</code> class. You pass the strategy options (item 1 above) by calling the <code>super()</code> method in your subclass, optionally passing in an options object. You provide the verify callback (item 2 above) by implementing a <code>validate()</code> method in your subclass.</p>
+<p>We&#39;ll start by generating an <code>AuthModule</code> and in it, an <code>AuthService</code>:</p>
+<pre><code class="language-bash">
+$ nest g module auth
+$ nest g service auth</code></pre>
+<p>As we implement the <code>AuthService</code>, we&#39;ll find it useful to encapsulate user operations in a <code>UsersService</code>, so let&#39;s generate that module and service now:</p>
+<pre><code class="language-bash">
+$ nest g module users
+$ nest g service users</code></pre>
+<p>Replace the default contents of these generated files as shown below. For our sample app, the <code>UsersService</code> simply maintains a hard-coded in-memory list of users, and a find method to retrieve one by username. In a real app, this is where you&#39;d build your user model and persistence layer, using your library of choice (e.g., TypeORM, Sequelize, Mongoose, etc.).</p>
+
+<span class="filename">
+  {{ 'src/users/users.service' | extension: appa8b1e398babc576325e5bd742f68f57daaab05fb.isJsActive }}
+<app-tabs #appa8b1e398babc576325e5bd742f68f57daaab05fb></app-tabs>
+</span><pre [class.hide]="appa8b1e398babc576325e5bd742f68f57daaab05fb.isJsActive"><code class="language-typescript">
+import &#123; Injectable &#125; from &#39;@nestjs/common&#39;;
+
+export type User = any;
+
+@Injectable()
+export class UsersService &#123;
+  private readonly users: User[];
+
+  constructor() &#123;
+    this.users = [
+      &#123;
+        userId: 1,
+        username: &#39;john&#39;,
+        password: &#39;changeme&#39;,
+      &#125;,
+      &#123;
+        userId: 2,
+        username: &#39;chris&#39;,
+        password: &#39;secret&#39;,
+      &#125;,
+      &#123;
+        userId: 3,
+        username: &#39;maria&#39;,
+        password: &#39;guess&#39;,
+      &#125;,
+    ];
+  &#125;
+
+  async findOne(username: string): Promise&lt;User | undefined&gt; &#123;
+    return this.users.find(user =&gt; user.username === username);
+  &#125;
+&#125;</code></pre>
+<pre [class.hide]="!appa8b1e398babc576325e5bd742f68f57daaab05fb.isJsActive"><code class="language-typescript">
+import &#123; Injectable &#125; from &#39;@nestjs/common&#39;;
+
+@Injectable()
+export class UsersService &#123;
+  constructor() &#123;
+    this.users = [
+      &#123;
+        userId: 1,
+        username: &#39;john&#39;,
+        password: &#39;changeme&#39;,
+      &#125;,
+      &#123;
+        userId: 2,
+        username: &#39;chris&#39;,
+        password: &#39;secret&#39;,
+      &#125;,
+      &#123;
+        userId: 3,
+        username: &#39;maria&#39;,
+        password: &#39;guess&#39;,
+      &#125;,
+    ];
+  &#125;
+
+  async findOne(username) &#123;
+    return this.users.find(user =&gt; user.username === username);
+  &#125;
+&#125;</code></pre><p>In the <code>UsersModule</code>, the only change needed is to add the <code>UsersService</code> to the exports array of the <code>@Module</code> decorator so that it is visible outside this module (we&#39;ll soon use it in our <code>AuthService</code>).</p>
+
+<span class="filename">
+  {{ 'src/users/users.module' | extension: appf9771c2163c413901e102888a177e6ff31841bbd.isJsActive }}
+<app-tabs #appf9771c2163c413901e102888a177e6ff31841bbd></app-tabs>
+</span><pre [class.hide]="appf9771c2163c413901e102888a177e6ff31841bbd.isJsActive"><code class="language-typescript">
+import &#123; Module &#125; from &#39;@nestjs/common&#39;;
+import &#123; UsersService &#125; from &#39;./users.service&#39;;
+
+@Module(&#123;
+  providers: [UsersService],
+  exports: [UsersService],
+&#125;)
+export class UsersModule &#123;&#125;</code></pre>
+<pre [class.hide]="!appf9771c2163c413901e102888a177e6ff31841bbd.isJsActive"><code class="language-typescript">
+import &#123; Module &#125; from &#39;@nestjs/common&#39;;
+import &#123; UsersService &#125; from &#39;./users.service&#39;;
+
+@Module(&#123;
+  providers: [UsersService],
+  exports: [UsersService],
+&#125;)
+export class UsersModule &#123;&#125;</code></pre><p>Our <code>AuthService</code> has the job of retrieving a user and verifying the password. We create a <code>validateUser()</code> method for this purpose. In the code below, we use a convenient ES6 spread operator to strip the password property from the user object before returning it. We&#39;ll be calling into the <code>validateUser()</code> method from our Passport local strategy in a moment.</p>
+
+<span class="filename">
+  {{ 'src/auth/auth.service' | extension: appb3cb6a85ed8fe3a7b83617692ba75599cb9063a7.isJsActive }}
+<app-tabs #appb3cb6a85ed8fe3a7b83617692ba75599cb9063a7></app-tabs>
+</span><pre [class.hide]="appb3cb6a85ed8fe3a7b83617692ba75599cb9063a7.isJsActive"><code class="language-typescript">
+import &#123; Injectable &#125; from &#39;@nestjs/common&#39;;
+import &#123; UsersService &#125; from &#39;../users/users.service&#39;;
+
+@Injectable()
+export class AuthService &#123;
+  constructor(private readonly usersService: UsersService) &#123;&#125;
+
+  async validateUser(username: string, pass: string): Promise&lt;any&gt; &#123;
+    const user = await this.usersService.findOne(username);
+    if (user &amp;&amp; user.password === pass) &#123;
+      const &#123; password, ...result &#125; = user;
+      return result;
+    &#125;
+    return null;
+  &#125;
+&#125;</code></pre>
+<pre [class.hide]="!appb3cb6a85ed8fe3a7b83617692ba75599cb9063a7.isJsActive"><code class="language-typescript">
+import &#123; Injectable, Dependencies &#125; from &#39;@nestjs/common&#39;;
+import &#123; UsersService &#125; from &#39;../users/users.service&#39;;
+
+@Injectable()
+@Dependencies(UsersService)
+export class AuthService &#123;
+  constructor(usersService) &#123;
+    this.usersService = usersService;
+  &#125;
+
+  async validateUser(username, pass) &#123;
+    const user = await this.usersService.findOne(username);
+    if (user &amp;&amp; user.password === pass) &#123;
+      const &#123; password, ...result &#125; = user;
+      return result;
+    &#125;
+    return null;
+  &#125;
+&#125;</code></pre><blockquote class="
+Warning "><strong>Warning</strong> Of course in a real application, you wouldn&#39;t store a password in plain text. You&#39;d instead use a library like <a target='_blank' href="https://github.com/kelektiv/node.bcrypt.js#readme">bcrypt</a>, with a salted one-way hash algorithm. With that approach, you&#39;d only store hashed passwords, and then compare the stored password to a hashed version of the <strong>incoming</strong> password, thus never storing or exposing user passwords in plain text. To keep our sample app simple, we violate that absolute mandate and use plain text. <strong>Don&#39;t do this in your real app!</strong>
+</blockquote>
+<p>Now, we update our <code>AuthModule</code> to import the <code>UsersModule</code>.</p>
+
+<span class="filename">
+  {{ 'src/auth/auth.module' | extension: app341e9b680a8be6252399b30bfc01ea8523802a61.isJsActive }}
+<app-tabs #app341e9b680a8be6252399b30bfc01ea8523802a61></app-tabs>
+</span><pre [class.hide]="app341e9b680a8be6252399b30bfc01ea8523802a61.isJsActive"><code class="language-typescript">
+import &#123; Module &#125; from &#39;@nestjs/common&#39;;
+import &#123; AuthService &#125; from &#39;./auth.service&#39;;
+import &#123; UsersModule &#125; from &#39;../users/users.module&#39;;
+
+@Module(&#123;
+  imports: [UsersModule],
+  providers: [AuthService],
+&#125;)
+export class AuthModule &#123;&#125;</code></pre>
+<pre [class.hide]="!app341e9b680a8be6252399b30bfc01ea8523802a61.isJsActive"><code class="language-typescript">
+import &#123; Module &#125; from &#39;@nestjs/common&#39;;
+import &#123; AuthService &#125; from &#39;./auth.service&#39;;
+import &#123; UsersModule &#125; from &#39;../users/users.module&#39;;
+
+@Module(&#123;
+  imports: [UsersModule],
+  providers: [AuthService],
+&#125;)
+export class AuthModule &#123;&#125;</code></pre><h4 appAnchor id="implementing-passport-local"><span>Implementing Passport local</span></h4>
+<p>Now we can implement our Passport <strong>local authentication strategy</strong>. Create a file called <code>local.strategy.ts</code> in the <code>auth</code> folder, and add the following code:</p>
+
+<span class="filename">
+  {{ 'src/auth/local.strategy' | extension: appb7191d6def295621b723a75684420bfb2ed33248.isJsActive }}
+<app-tabs #appb7191d6def295621b723a75684420bfb2ed33248></app-tabs>
+</span><pre [class.hide]="appb7191d6def295621b723a75684420bfb2ed33248.isJsActive"><code class="language-typescript">
+import &#123; Strategy &#125; from &#39;passport-local&#39;;
+import &#123; PassportStrategy &#125; from &#39;@nestjs/passport&#39;;
+import &#123; Injectable, UnauthorizedException &#125; from &#39;@nestjs/common&#39;;
+import &#123; AuthService &#125; from &#39;./auth.service&#39;;
+
+@Injectable()
+export class LocalStrategy extends PassportStrategy(Strategy) &#123;
+  constructor(private readonly authService: AuthService) &#123;
+    super();
+  &#125;
+
+  async validate(username: string, password: string): Promise&lt;any&gt; &#123;
+    const user = await this.authService.validateUser(username, password);
+    if (!user) &#123;
+      throw new UnauthorizedException();
+    &#125;
+    return user;
+  &#125;
+&#125;</code></pre>
+<pre [class.hide]="!appb7191d6def295621b723a75684420bfb2ed33248.isJsActive"><code class="language-typescript">
+import &#123; Strategy &#125; from &#39;passport-local&#39;;
+import &#123; PassportStrategy &#125; from &#39;@nestjs/passport&#39;;
+import &#123; Injectable, UnauthorizedException, Dependencies &#125; from &#39;@nestjs/common&#39;;
+import &#123; AuthService &#125; from &#39;./auth.service&#39;;
+
+@Injectable()
+@Dependencies(AuthService)
+export class LocalStrategy extends PassportStrategy(Strategy) &#123;
+  constructor(authService) &#123;
+    this.authService = authService
+    super();
+  &#125;
+
+  async validate(username, password) &#123;
+    const user = await this.authService.validateUser(username, password);
+    if (!user) &#123;
+      throw new UnauthorizedException();
+    &#125;
+    return user;
+  &#125;
+&#125;</code></pre><p>We&#39;ve followed the recipe described earlier for all Passport strategies. In our use case with passport-local, there are no configuration options, so our constructor simply calls <code>super()</code>, without an options object.</p>
+<p>We&#39;ve also implemented the <code>validate()</code> method. For each strategy, Passport will call the verify function (implemented with the <code>validate()</code> method in <code>@nestjs/passport</code>) using an appropriate strategy-specific set of parameters. For the local-strategy, Passport expects a <code>validate()</code> method with the following signature: <code>validate(username: string, password:string): any</code>.</p>
+<p>Most of the validation work is done in our <code>AuthService</code> (with the help of our <code>UserService</code>), so this method is quite straightforward. The <code>validate()</code> method for <strong>any</strong> Passport strategy will follow a similar pattern, varying only in the details of how credentials are represented. If a user is found and the credentials are valid, the user is returned so Passport can complete its tasks (e.g., creating the <code>user</code> property on the <code>Request</code> object), and the request handling pipeline can continue. If it&#39;s not found, we throw an exception and let our <a href="exception-filters">exceptions layer</a> handle it.</p>
+<p>Typically, the only significant difference in the <code>validate()</code> method for each strategy is <strong>how</strong> you determine if a user exists and is valid. For example, in a JWT strategy, depending on requirements, we may evaluate whether the <code>userId</code> carried in the decoded token matches a record in our user database, or matches a list of revoked tokens. Hence, this pattern of sub-classing and implementing strategy-specific validation is consistent, elegant and extensible.</p>
+<p>We need to configure our <code>AuthModule</code> to use the Passport features we just defined. Update <code>auth.module.ts</code> to look like this:</p>
+
+<span class="filename">
+  {{ 'src/auth/auth.module' | extension: app83a3ed86e39d7f0ddd1e184682863d5de6fe05b0.isJsActive }}
+<app-tabs #app83a3ed86e39d7f0ddd1e184682863d5de6fe05b0></app-tabs>
+</span><pre [class.hide]="app83a3ed86e39d7f0ddd1e184682863d5de6fe05b0.isJsActive"><code class="language-typescript">
+import &#123; Module &#125; from &#39;@nestjs/common&#39;;
+import &#123; AuthService &#125; from &#39;./auth.service&#39;;
+import &#123; UsersModule &#125; from &#39;../users/users.module&#39;;
+import &#123; PassportModule &#125; from &#39;@nestjs/passport&#39;;
+import &#123; LocalStrategy &#125; from &#39;./local.strategy&#39;;
+
+@Module(&#123;
+  imports: [UsersModule, PassportModule],
+  providers: [AuthService, LocalStrategy],
+&#125;)
+export class AuthModule &#123;&#125;</code></pre>
+<pre [class.hide]="!app83a3ed86e39d7f0ddd1e184682863d5de6fe05b0.isJsActive"><code class="language-typescript">
+import &#123; Module &#125; from &#39;@nestjs/common&#39;;
+import &#123; AuthService &#125; from &#39;./auth.service&#39;;
+import &#123; UsersModule &#125; from &#39;../users/users.module&#39;;
+import &#123; PassportModule &#125; from &#39;@nestjs/passport&#39;;
+import &#123; LocalStrategy &#125; from &#39;./local.strategy&#39;;
+
+@Module(&#123;
+  imports: [UsersModule, PassportModule],
+  providers: [AuthService, LocalStrategy],
+&#125;)
+export class AuthModule &#123;&#125;</code></pre><h4 appAnchor id="built-in-passport-guards"><span>Built-in Passport Guards</span></h4>
+<p>The <a href="guards">Guards</a> chapter describes the primary function of Guards: to determine whether a request will be handled by the route handler or not. That remains true, and we&#39;ll use that standard capability soon. However, in the context of using the <code>@nestjs/passport</code> module, we will also introduce a slight new wrinkle that may at first be confusing, so let&#39;s discuss that now. Consider that your app can exist in two states, from an authentication perspective:</p>
+<ol>
+<li>the user/client is <strong>not</strong> logged in (is not authenticated)</li>
+<li>the user/client <strong>is</strong> logged in (is authenticated)</li>
+</ol>
+<p>In the first case (user is not logged in), we need to perform two distinct functions:</p>
+<ul>
+<li><p>Restrict the routes an unauthenticated user can access (i.e., deny access to restricted routes). We&#39;ll use Guards in their familiar capacity to handle this function, by placing a Guard on the protected routes. As you may anticipate, we&#39;ll be checking for the presence of a valid JWT in this Guard, so we&#39;ll work on this Guard later, once we are successfully issuing JWTs.</p>
+</li>
+<li><p>Initiate the <strong>authentication step</strong> itself when a previously unauthenticated user attempts to login. This is the step where we&#39;ll <strong>issue</strong> a JWT to a valid user. Thinking about this for a moment, we know we&#39;ll need to <code>POST</code> username/password credentials to initiate authentication, so we&#39;ll set up a <code>POST /api/login</code> route to handle that. This raises the question: how exactly do we invoke the passport-local strategy in that route?</p>
+</li>
+</ul>
+<p>The answer is straightforward: by using another, slightly different type of Guard. The <code>@nestjs/passport</code> module provides us with a built-in Guard that does this for us. This Guard invokes the Passport strategy and kicks off the steps described above (retrieving credentials, running the verify function, creating the <code>user</code> property, etc).</p>
+<p>The second case enumerated above (logged in user) simply relies on the standard type of Guard we already discussed to enable access to protected routes for logged in users.</p>
+<h4 appAnchor id="login-route"><span>Login route</span></h4>
+<p>With the strategy in place, we can now implement a bare-bones <code>/api/login</code> route, and apply the built-in Guard to initiate the passport-local flow.</p>
+<p>Open the <code>app.controller.ts</code> file and replace its contents with the following:</p>
+
+<span class="filename">
+  {{ 'src/app.controller' | extension: app42974b4eb2d3771b587e77895e639541ebd1853c.isJsActive }}
+<app-tabs #app42974b4eb2d3771b587e77895e639541ebd1853c></app-tabs>
+</span><pre [class.hide]="app42974b4eb2d3771b587e77895e639541ebd1853c.isJsActive"><code class="language-typescript">
+import &#123; Controller, Request, Post, UseGuards &#125; from &#39;@nestjs/common&#39;;
+import &#123; AuthGuard &#125; from &#39;@nestjs/passport&#39;;
+
+@Controller(&#39;api&#39;)
+export class AppController &#123;
+  @UseGuards(AuthGuard(&#39;local&#39;))
+  @Post(&#39;login&#39;)
+  async login(@Request() req) &#123;
+    return req.user;
+  &#125;
+&#125;</code></pre>
+<pre [class.hide]="!app42974b4eb2d3771b587e77895e639541ebd1853c.isJsActive"><code class="language-typescript">
+import &#123; Controller, Bind, Request, Post, UseGuards &#125; from &#39;@nestjs/common&#39;;
+import &#123; AuthGuard &#125; from &#39;@nestjs/passport&#39;;
+
+@Controller(&#39;api&#39;)
+export class AppController &#123;
+  @UseGuards(AuthGuard(&#39;local&#39;))
+  @Post(&#39;login&#39;)
+  @Bind(Req())
+  async login(req) &#123;
+    return req.user;
+  &#125;
+&#125;</code></pre><p>With <code>@UseGuards(AuthGuard(&#39;local&#39;))</code> we are using an <code>AuthGuard</code> that <code>@nestjs/passport</code> <strong>automatically provisioned</strong> for us when we extended the passport-local strategy. Let&#39;s break that down. Our Passport local strategy has a default name of <code>&#39;local&#39;</code>. We reference that name in the <code>@UseGuards()</code> decorator to associate it with code supplied by the <code>passport-local</code> package. This is used to disambiguate which strategy to invoke in case we have multiple Passport strategies in our app (each of which may provision a strategy-specific <code>AuthGuard</code>). While we only have one such strategy so far, we&#39;ll shortly add a second, so this is needed for disambiguation.</p>
+<p>In order to test our route we&#39;ll have our <code>/api/login</code> route simply return the user for now. This also lets us demonstrate another Passport feature: Passport automatically creates a <code>user</code> object, based on the value we return from the <code>validate()</code> method, and assigns it to the <code>Request</code> object as <code>req.user</code>. Later, we&#39;ll replace this with code to create and return a JWT instead.</p>
+<p>Since these are API routes, we&#39;ll test them using the commonly available <a target='_blank' href="https://curl.haxx.se/">cURL</a> library. You can test with any of the <code>user</code> objects hard-coded in the <code>UsersService</code>.</p>
+<pre><code class="language-bash">
+$ # POST to /api/login
+$ curl -X POST http://localhost:3000/api/login -d &#39;&#123;&quot;username&quot;: &quot;john&quot;, &quot;password&quot;: &quot;changeme&quot;&#125;&#39; -H &quot;Content-Type: application/json&quot;
+$ # result -&gt; &#123;&quot;userId&quot;:1,&quot;username&quot;:&quot;john&quot;&#125;</code></pre>
+<h4 appAnchor id="jwt-functionality"><span>JWT functionality</span></h4>
+<p>We&#39;re ready to move on to the JWT portion of our auth system. Let&#39;s review and refine our requirements:</p>
+<ul>
+<li>Allow users to authenticate with username/password, returning a JWT for use in subsequent calls to protected API endpoints. We&#39;re well on our way to meeting this requirement. To complete it, we&#39;ll need to write the code that issues a JWT.</li>
+<li>Create API routes which are protected based on the presence of a valid JWT as a bearer token</li>
+</ul>
+<p>We&#39;ll need to install a couple more packages to support our JWT requirements:</p>
+<pre><code class="language-bash">
+$ npm install @nestjs/jwt passport-jwt</code></pre>
+<p>The <code>@nest/jwt</code> package (see more <a target='_blank' href="https://github.com/nestjs/jwt">here</a>) is a utility package that helps with JWT manipulation. The <code>passport-jwt</code> package is the Passport package that implements the JWT strategy.</p>
+<p>Let&#39;s take a closer look at how a <code>POST /api/login</code> request is handled. We&#39;ve decorated the route using the built-in <code>AuthGuard</code> provided by the passport-local strategy. This means that:</p>
+<ol>
+<li>The route handler <strong>will only be invoked if the user has been validated</strong></li>
+<li>The <code>req</code> parameter will contain a <code>user</code> property (populated by Passport during the passport-local authentication flow)</li>
+</ol>
+<p>With this in mind, we can now finally generate a real JWT, and return it in this route. To keep our services cleanly modularized, we&#39;ll handle generating the JWT in the <code>authService</code>. Open the <code>auth.service.ts</code> file in the <code>auth</code> folder, and add the <code>login()</code> method, and import the <code>JwtService</code> as shown:</p>
+
+<span class="filename">
+  {{ 'src/auth/auth.service' | extension: app5e34f5648ff3b14c80b6b1a15aea339199adaced.isJsActive }}
+<app-tabs #app5e34f5648ff3b14c80b6b1a15aea339199adaced></app-tabs>
+</span><pre [class.hide]="app5e34f5648ff3b14c80b6b1a15aea339199adaced.isJsActive"><code class="language-typescript">
+import &#123; Injectable &#125; from &#39;@nestjs/common&#39;;
+import &#123; UsersService &#125; from &#39;../users/users.service&#39;;
+import &#123; JwtService &#125; from &#39;@nestjs/jwt&#39;;
+
+@Injectable()
+export class AuthService &#123;
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly jwtService: JwtService
+  ) &#123;&#125;
+
+  async validateUser(username: string, pass: string): Promise&lt;any&gt; &#123;
+    const user = await this.usersService.findOne(username);
+    if (user &amp;&amp; user.password === pass) &#123;
+      const &#123; password, ...result &#125; = user;
+      return result;
+    &#125;
+    return null;
+  &#125;
+
+  async login(user: any) &#123;
+    const payload = &#123; username: user.username, sub: user.userId &#125;;
+    return &#123;
+      access_token: this.jwtService.sign(payload),
+    &#125;;
+  &#125;
+&#125;</code></pre>
+<pre [class.hide]="!app5e34f5648ff3b14c80b6b1a15aea339199adaced.isJsActive"><code class="language-typescript">
+import &#123; Injectable, Dependencies &#125; from &#39;@nestjs/common&#39;;
+import &#123; UsersService &#125; from &#39;../users/users.service&#39;;
+import &#123; JwtService &#125; from &#39;@nestjs/jwt&#39;;
+
+@Dependencies(UsersService, JwtService)
+@Injectable()
+export class AuthService &#123;
+  constructor(usersService, jwtService)
+  ) &#123;
+    this.usersService = usersService;
+    this.jwtService = jwtService;
+  &#125;
+
+  async validateUser(username, pass) &#123;
+    const user = await this.usersService.findOne(username);
+    if (user &amp;&amp; user.password === pass) &#123;
+      const &#123; password, ...result &#125; = user;
+      return result;
+    &#125;
+    return null;
+  &#125;
+
+  async login(user) &#123;
+    const payload = &#123; username: user.username, sub: user.userId &#125;;
+    return &#123;
+      access_token: this.jwtService.sign(payload),
+    &#125;;
+  &#125;
+&#125;</code></pre><p>We&#39;re using the <code>@nestjs/jwt</code> library, which supplies a <code>sign()</code> function to generate our JWT from a subset of the <code>user</code> object properties, which we then return as a simple object with a single <code>access_token</code> property. Note: we choose a property name of <code>sub</code> to hold our <code>userId</code> value to be consistent with JWT standards. Don&#39;t forget to inject the JwtService provider into the <code>AuthService</code>.</p>
+<p>We now need to update the <code>AuthModule</code> to import the new dependencies and configure the <code>JwtModule</code>.</p>
+<p>First, create <code>constants.ts</code> in the <code>auth</code> folder, and add the following code:</p>
+
+<span class="filename">
+  {{ 'src/auth/constants' | extension: app18361f69475a891bb7089794b83044e8cc7c8373.isJsActive }}
+<app-tabs #app18361f69475a891bb7089794b83044e8cc7c8373></app-tabs>
+</span><pre [class.hide]="app18361f69475a891bb7089794b83044e8cc7c8373.isJsActive"><code class="language-typescript">
+export const jwtConstants = &#123;
+  secret: &#39;secretKey&#39;,
+&#125;;</code></pre>
+<pre [class.hide]="!app18361f69475a891bb7089794b83044e8cc7c8373.isJsActive"><code class="language-typescript">
+export const jwtConstants = &#123;
+  secret: &#39;secretKey&#39;,
+&#125;;</code></pre><p>We&#39;ll use this to share our key between the JWT signing and verifying steps.</p>
+<blockquote class="
+Warning "><strong>Warning</strong> <strong>Do not expose this key publicly</strong>. We have done so here to make it clear what the code is doing, but in a production system <strong>you must protect this key</strong> using appropriate measures such as a secrets vault, environment variable, or configuration service.
+</blockquote>
+<p>Now, open <code>auth.module.ts</code> in the <code>auth</code> folder and update it to look like this:</p>
+
+<span class="filename">
+  {{ 'src/auth/auth.module' | extension: appf43b84627fd5afbf36502b29add9e63a30ba0637.isJsActive }}
+<app-tabs #appf43b84627fd5afbf36502b29add9e63a30ba0637></app-tabs>
+</span><pre [class.hide]="appf43b84627fd5afbf36502b29add9e63a30ba0637.isJsActive"><code class="language-typescript">
+import &#123; Module &#125; from &#39;@nestjs/common&#39;;
+import &#123; AuthService &#125; from &#39;./auth.service&#39;;
+import &#123; LocalStrategy &#125; from &#39;./local.strategy&#39;;
+import &#123; UsersModule &#125; from &#39;../users/users.module&#39;;
+import &#123; PassportModule &#125; from &#39;@nestjs/passport&#39;;
+import &#123; JwtModule &#125; from &#39;@nestjs/jwt&#39;;
+import &#123; jwtConstants &#125; from &#39;./constants&#39;;
+
+@Module(&#123;
+  imports: [
+    UsersModule,
+    PassportModule,
+    JwtModule.register(&#123;
+      secret: jwtConstants.secret,
+      signOptions: &#123; expiresIn: &#39;60s&#39; &#125;,
+    &#125;),
+  ],
+  providers: [AuthService, LocalStrategy],
+  exports: [AuthService],
+&#125;)
+export class AuthModule &#123;&#125;</code></pre>
+<pre [class.hide]="!appf43b84627fd5afbf36502b29add9e63a30ba0637.isJsActive"><code class="language-typescript">
+import &#123; Module &#125; from &#39;@nestjs/common&#39;;
+import &#123; AuthService &#125; from &#39;./auth.service&#39;;
+import &#123; LocalStrategy &#125; from &#39;./local.strategy&#39;;
+import &#123; UsersModule &#125; from &#39;../users/users.module&#39;;
+import &#123; PassportModule &#125; from &#39;@nestjs/passport&#39;;
+import &#123; JwtModule &#125; from &#39;@nestjs/jwt&#39;;
+import &#123; jwtConstants &#125; from &#39;./constants&#39;;
+
+@Module(&#123;
+  imports: [
+    UsersModule,
+    PassportModule,
+    JwtModule.register(&#123;
+      secret: jwtConstants.secret,
+      signOptions: &#123; expiresIn: &#39;60s&#39; &#125;,
+    &#125;),
+  ],
+  providers: [AuthService, LocalStrategy],
+  exports: [AuthService],
+&#125;)
+export class AuthModule &#123;&#125;</code></pre><p>We configure the <code>JwtModule</code> using <code>register()</code>, passing in a configuration object. See <a target='_blank' href="https://github.com/nestjs/jwt/blob/master/README.md">here</a> for more on the Nest <code>JwtModule</code> and <a target='_blank' href="https://github.com/auth0/node-jsonwebtoken#usage">here</a> for more details on the available configuration options.</p>
+<p>Now we can update the <code>/api/login</code> route to return a JWT.</p>
+
+<span class="filename">
+  {{ 'src/app.controller' | extension: appb6dbdfa4fdea70d4d9ddbf17dc414b6fad7fbac3.isJsActive }}
+<app-tabs #appb6dbdfa4fdea70d4d9ddbf17dc414b6fad7fbac3></app-tabs>
+</span><pre [class.hide]="appb6dbdfa4fdea70d4d9ddbf17dc414b6fad7fbac3.isJsActive"><code class="language-typescript">
+import &#123; Controller, Request, Post, UseGuards &#125; from &#39;@nestjs/common&#39;;
+import &#123; AuthGuard &#125; from &#39;@nestjs/passport&#39;;
+import &#123; AuthService &#125; from &#39;./auth/auth.service&#39;;
+
+@Controller(&#39;api&#39;)
+export class AppController &#123;
+  constructor(private readonly authService: AuthService) &#123;&#125;
+
+  @UseGuards(AuthGuard(&#39;local&#39;))
+  @Post(&#39;login&#39;)
+  async login(@Request() req) &#123;
+    return this.authService.login(req.user);
+  &#125;
+&#125;</code></pre>
+<pre [class.hide]="!appb6dbdfa4fdea70d4d9ddbf17dc414b6fad7fbac3.isJsActive"><code class="language-typescript">
+import &#123; Controller, Bind, Request, Post, UseGuards &#125; from &#39;@nestjs/common&#39;;
+import &#123; AuthGuard &#125; from &#39;@nestjs/passport&#39;;
+import &#123; AuthService &#125; from &#39;./auth/auth.service&#39;;
+
+@Controller(&#39;api&#39;)
+export class AppController &#123;
+  constructor(private readonly authService: AuthService) &#123;&#125;
+
+  @UseGuards(AuthGuard(&#39;local&#39;))
+  @Post(&#39;login&#39;)
+  @Bind(Req())
+  async login(req) &#123;
+    return this.authService.login(req.user);
+  &#125;
+&#125;</code></pre><p>Let&#39;s go ahead and test our routes using cURL again. You can test with any of the <code>user</code> objects hard-coded in the <code>UsersService</code>.</p>
+<pre><code class="language-bash">
+$ # POST to /api/login
+$ curl -X POST http://localhost:3000/api/login -d &#39;&#123;&quot;username&quot;: &quot;john&quot;, &quot;password&quot;: &quot;changeme&quot;&#125;&#39; -H &quot;Content-Type: application/json&quot;
+$ # result -&gt; &#123;&quot;access_token&quot;:&quot;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...&quot;&#125;
+$ # Note: above JWT truncated</code></pre>
+<h4 appAnchor id="implementing-passport-jwt"><span>Implementing Passport JWT</span></h4>
+<p>We can now address our final requirement: protecting endpoints by requiring a valid JWT be present on the request. Passport can help us here too. It provides the <a target='_blank' href="https://github.com/mikenicholson/passport-jwt">passport-jwt</a> strategy for securing RESTful endpoints with JSON Web Tokens. Start by creating a file called <code>jwt.strategy.ts</code> in the <code>auth</code> folder, and add the following code:</p>
+
+<span class="filename">
+  {{ 'src/auth/jwt.strategy' | extension: app5d255f6fc5e3abc0bf575c5e42e4d52a743e975e.isJsActive }}
+<app-tabs #app5d255f6fc5e3abc0bf575c5e42e4d52a743e975e></app-tabs>
+</span><pre [class.hide]="app5d255f6fc5e3abc0bf575c5e42e4d52a743e975e.isJsActive"><code class="language-typescript">
+import &#123; ExtractJwt, Strategy &#125; from &#39;passport-jwt&#39;;
+import &#123; PassportStrategy &#125; from &#39;@nestjs/passport&#39;;
+import &#123; Injectable &#125; from &#39;@nestjs/common&#39;;
+import &#123; jwtConstants &#125; from &#39;./constants&#39;;
+
+@Injectable()
+export class JwtStrategy extends PassportStrategy(Strategy) &#123;
+  constructor() &#123;
+    super(&#123;
+      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      ignoreExpiration: false,
+      secretOrKey: jwtConstants.secret,
+    &#125;);
+  &#125;
+
+  async validate(payload: any) &#123;
+    return &#123; userId: payload.sub, username: payload.username &#125;;
+  &#125;
+&#125;</code></pre>
+<pre [class.hide]="!app5d255f6fc5e3abc0bf575c5e42e4d52a743e975e.isJsActive"><code class="language-typescript">
+import &#123; ExtractJwt, Strategy &#125; from &#39;passport-jwt&#39;;
+import &#123; PassportStrategy &#125; from &#39;@nestjs/passport&#39;;
+import &#123; Injectable &#125; from &#39;@nestjs/common&#39;;
+import &#123; jwtConstants &#125; from &#39;./constants&#39;;
+
+@Injectable()
+export class JwtStrategy extends PassportStrategy(Strategy) &#123;
+  constructor() &#123;
+    super(&#123;
+      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      ignoreExpiration: false,
+      secretOrKey: jwtConstants.secret,
+    &#125;);
+  &#125;
+
+  async validate(payload) &#123;
+    return &#123; userId: payload.sub, username: payload.username &#125;;
+  &#125;
+&#125;</code></pre><p>With our <code>JwtStrategy</code>, we&#39;ve followed the same recipe described earlier for all Passport strategies. This strategy requires some initialization, so we do that by passing in an options object in the <code>super()</code> call. You can read more about the available options <a target='_blank' href="https://github.com/mikenicholson/passport-jwt#configure-strategy">here</a>. In our case, these options are:</p>
+<ul>
+<li><code>jwtFromRequest</code>: supplies the method by which the JWT will be extracted from the <code>Request</code>. We will use the standard approach of supplying a bearer token in the Authorization header of our API requests. Other options are described <a target='_blank' href="https://github.com/mikenicholson/passport-jwt#extracting-the-jwt-from-the-request">here</a>.</li>
+<li><code>ignoreExpiration</code>: just to be explicit, we choose the default <code>false</code> setting, which delegates the responsibility of ensuring that a JWT has not expired to the Passport module. This means that if our route is supplied with an expired JWT, the request will be denied and a <code>401 Unauthorized</code> response sent. Passport conveniently handles this automatically for us.</li>
+<li><code>secretOrKey</code>: we are using the expedient option of supplying a symmetric secret for signing the token. Other options, such as a PEM-encoded public key, may be more appropriate for production apps (see <a target='_blank' href="https://github.com/mikenicholson/passport-jwt#extracting-the-jwt-from-the-request">here</a> for more information). In any case, as cautioned earlier, <strong>do not expose this secret publicly</strong>.</li>
+</ul>
+<p>The <code>validate()</code> method deserves some discussion. For the jwt-strategy, Passport first verifies the JWT&#39;s signature and decodes the JSON. It then invokes our <code>validate()</code> method passing the decoded JSON as its single parameter. Based on the way JWT signing works, <strong>we&#39;re guaranteed that we&#39;re receiving a valid token</strong> that we have previously signed and issued to a valid user.</p>
+<p>As a result of all this, our response to the <code>validate()</code> callback is trivial: we simply return an object containing the <code>userId</code> and <code>username</code> properties. Recall again that Passport will build a <code>user</code> object based on the return value of our <code>validate()</code> method, and attach it as a property on the <code>Request</code> object.</p>
+<p>It&#39;s also worth pointing out that this approach leaves us room (&#39;hooks&#39; as it were) to inject other business logic into the process. For example, we could do a database lookup in our <code>validate()</code> method to extract more information about the user, resulting in a more enriched <code>user</code> object being available in our <code>Request</code>. This is also the place we may decide to do further token validation, such as looking up the <code>userId</code> in a list of revoked tokens, enabling us to perform token revocation. The model we&#39;ve implemented here in our sample code is a fast, &quot;stateless JWT&quot; model, where each API call is immediately authorized based on the presence of a valid JWT, and a small bit of information about the requester (its <code>userId</code> and <code>username</code>) is available in our Request pipeline.</p>
+<p>Add the new <code>JwtStrategy</code> as a provider in the <code>AuthModule</code>:</p>
+
+<span class="filename">
+  {{ '/src/auth/auth.module' | extension: appef878e15486b9a5b6c3e2677b0949aea0e7b311d.isJsActive }}
+<app-tabs #appef878e15486b9a5b6c3e2677b0949aea0e7b311d></app-tabs>
+</span><pre [class.hide]="appef878e15486b9a5b6c3e2677b0949aea0e7b311d.isJsActive"><code class="language-typescript">
+import &#123; Module &#125; from &#39;@nestjs/common&#39;;
+import &#123; AuthService &#125; from &#39;./auth.service&#39;;
+import &#123; LocalStrategy &#125; from &#39;./local.strategy&#39;;
+import &#123; JwtStrategy &#125; from &#39;./jwt.strategy&#39;;
+import &#123; UsersModule &#125; from &#39;../users/users.module&#39;;
+import &#123; PassportModule &#125; from &#39;@nestjs/passport&#39;;
+import &#123; JwtModule &#125; from &#39;@nestjs/jwt&#39;;
+import &#123; jwtConstants &#125; from &#39;./constants&#39;;
+
+@Module(&#123;
+  imports: [
+    UsersModule,
+    PassportModule,
+    JwtModule.register(&#123;
+      secret: jwtConstants.secret,
+      signOptions: &#123; expiresIn: &#39;60s&#39; &#125;,
+    &#125;),
+  ],
+  providers: [AuthService, LocalStrategy, JwtStrategy],
+  exports: [AuthService],
+&#125;)
+export class AuthModule &#123;&#125;</code></pre>
+<pre [class.hide]="!appef878e15486b9a5b6c3e2677b0949aea0e7b311d.isJsActive"><code class="language-typescript">
+import &#123; Module &#125; from &#39;@nestjs/common&#39;;
+import &#123; AuthService &#125; from &#39;./auth.service&#39;;
+import &#123; LocalStrategy &#125; from &#39;./local.strategy&#39;;
+import &#123; JwtStrategy &#125; from &#39;./jwt.strategy&#39;;
+import &#123; UsersModule &#125; from &#39;../users/users.module&#39;;
+import &#123; PassportModule &#125; from &#39;@nestjs/passport&#39;;
+import &#123; JwtModule &#125; from &#39;@nestjs/jwt&#39;;
+import &#123; jwtConstants &#125; from &#39;./constants&#39;;
+
+@Module(&#123;
+  imports: [
+    UsersModule,
+    PassportModule,
+    JwtModule.register(&#123;
+      secret: jwtConstants.secret,
+      signOptions: &#123; expiresIn: &#39;60s&#39; &#125;,
+    &#125;),
+  ],
+  providers: [AuthService, LocalStrategy, JwtStrategy],
+  exports: [AuthService],
+&#125;)
+export class AuthModule &#123;&#125;</code></pre><p>By importing the same secret used when we signed the JWT, we ensure that the <strong>verify</strong> phase performed by Passport, and the <strong>sign</strong> phase performed in our AuthService, use a common secret.</p>
+<h4 appAnchor id="implement-protected-route-and-jwt-strategy-guards"><span>Implement protected route and JWT strategy guards</span></h4>
+<p>We can now implement our protected route and its associated Guard.</p>
+<p>Open the <code>app.controller.ts</code> file and update it as shown below:</p>
+
+<span class="filename">
+  {{ 'src/app.controller' | extension: appc62a0cdcc301a11e7b0a836958eafba3a0077e4d.isJsActive }}
+<app-tabs #appc62a0cdcc301a11e7b0a836958eafba3a0077e4d></app-tabs>
+</span><pre [class.hide]="appc62a0cdcc301a11e7b0a836958eafba3a0077e4d.isJsActive"><code class="language-typescript">
+import &#123; Controller, Get, Request, Post, UseGuards &#125; from &#39;@nestjs/common&#39;;
+import &#123; AuthGuard &#125; from &#39;@nestjs/passport&#39;;
+import &#123; AuthService &#125; from &#39;./auth/auth.service&#39;;
+
+@Controller(&#39;api&#39;)
+export class AppController &#123;
+  constructor(private readonly authService: AuthService) &#123;&#125;
+
+  @UseGuards(AuthGuard(&#39;local&#39;))
+  @Post(&#39;login&#39;)
+  async login(@Request() req) &#123;
+    return this.authService.login(req.user);
+  &#125;
+
+  @UseGuards(AuthGuard(&#39;jwt&#39;))
+  @Get(&#39;me&#39;)
+  getProfile(@Request() req) &#123;
+    return req.user;
+  &#125;
+&#125;</code></pre>
+<pre [class.hide]="!appc62a0cdcc301a11e7b0a836958eafba3a0077e4d.isJsActive"><code class="language-typescript">
+import &#123; Controller, Bind, Get, Request, Post, UseGuards &#125; from &#39;@nestjs/common&#39;;
+import &#123; AuthGuard &#125; from &#39;@nestjs/passport&#39;;
+import &#123; AuthService &#125; from &#39;./auth/auth.service&#39;;
+
+@Controller(&#39;api&#39;)
+export class AppController &#123;
+  constructor(private readonly authService: AuthService) &#123;&#125;
+
+  @UseGuards(AuthGuard(&#39;local&#39;))
+  @Post(&#39;login&#39;)
+  @Bind(Req())
+  async login(req) &#123;
+    return this.authService.login(req.user);
+  &#125;
+
+  @UseGuards(AuthGuard(&#39;jwt&#39;))
+  @Get(&#39;me&#39;)
+  @Bind(Req())
+  getProfile(req) &#123;
+    return req.user;
+  &#125;
+&#125;</code></pre><p>Once again, we&#39;re applying the <code>AuthGuard</code> that the <code>@nestjs/passport</code> module has automatically provisioned for us when we configured the passport-jwt module. This Guard is referenced by its default name, <code>jwt</code>. When our <code>GET /api/me</code> route is hit, the Guard will automatically invoke our passport-jwt custom configured logic, validating the JWT, and assigning the <code>user</code> property to the <code>Request</code> object.</p>
+<p>Ensure the app is running, and test the routes using <code>cURL</code>.</p>
+<pre><code class="language-bash">
+$ # GET /api/me
+$ curl http://localhost:3000/api/me
+$ # result -&gt; &#123;&quot;statusCode&quot;:401,&quot;error&quot;:&quot;Unauthorized&quot;&#125;
+$ # POST /api/login
+$ curl -X POST http://localhost:3000/api/login -d &#39;&#123;&quot;username&quot;: &quot;john&quot;, &quot;password&quot;: &quot;changeme&quot;&#125;&#39; -H &quot;Content-Type: application/json&quot;
+$ # result -&gt; &#123;&quot;access_token&quot;:&quot;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2Vybm... &#125;
+$ # GET /api/me using access_token returned from previous step as bearer code
+$ curl http://localhost:3000/api/me -H &quot;Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2Vybm...&quot;
+$ # result -&gt; &#123;&quot;userId&quot;:1,&quot;username&quot;:&quot;john&quot;&#125;</code></pre>
+<p>Note that in the <code>AuthModule</code>, we configured the JWT to have an expiration of <code>60 seconds</code>. This is probably too short an expiration, and dealing with the details of token expiration and refresh is beyond the scope of this article. However, we chose that to demonstrate an important quality of JWTs and the passport-jwt strategy. If you wait 60 seconds after authenticating before attempting a <code>GET /api/me</code> request, you&#39;ll receive a <code>401 Unauthorized</code> response. This is because Passport automatically checks the JWT for its expiration time, saving you the trouble of doing so in your application.</p>
+<p>We&#39;ve now completed our JWT authentication implementation. JavaScript clients (such as Angular/React/Vue), and other JavaScript apps, can now authenticate and communicate securely with our API Server. You can find a complete version of the code in this chapter <a routerLink="">here</a>.</p>
+<h4 appAnchor id="default-strategy"><span>Default strategy</span></h4>
+<p>In our <code>AppController</code>, we pass the name of the strategy in the <code>@AuthGuard()</code> decorator. We need to do this because we&#39;ve introduced <strong>two</strong> Passport strategies (passport-local and passport-jwt), both of which supply implementations of various Passport components. Passing the name disambiguates which implementation we&#39;re linking to. When multiple strategies are included in an application, we can declare a default strategy so that we no longer have to pass the name in the <code>@AuthGuard</code> decorator if using that default strategy. Here&#39;s how to register a default strategy when importing the <code>PassportModule</code>. This code would go in the <code>AuthModule</code>:</p>
+<pre><code class="language-typescript">
+import &#123; Module &#125; from &#39;@nestjs/common&#39;;
+import &#123; AuthService &#125; from &#39;./auth.service&#39;;
+import &#123; LocalStrategy &#125; from &#39;./local.strategy &#39;;
+import &#123; UsersModule &#125; from &#39;../users/users.module&#39;;
+import &#123; PassportModule &#125; from &#39;@nestjs/passport&#39;;
+import &#123; JwtModule &#125; from &#39;@nestjs/jwt&#39;;
+import &#123; jwtConstants &#125; from &#39;./constants&#39;;
+import &#123; JwtStrategy &#125; from &#39;./jwt.strategy&#39;;
+
+@Module(&#123;
+  imports: [PassportModule.register(&#123; defaultStrategy: &#39;jwt&#39; &#125;), UsersModule],
+  providers: [AuthService, LocalStrategy, JwtStrategy],
+  exports: [AuthService],
+&#125;)
+export class AuthModule &#123;&#125;</code></pre>
+<h4 appAnchor id="customize-passport"><span>Customize Passport</span></h4>
+<p>Any standard Passport customization options can be passed the same way, using the <code>register()</code> method. The available options depend on the strategy being implemented. For example:</p>
+<pre><code class="language-typescript">
+PassportModule.register(&#123; session: true &#125;);</code></pre>
+<h4 appAnchor id="named-strategies"><span>Named strategies</span></h4>
+<p>When implementing a strategy, you can provide a name for it by passing a second argument to the <code>PassportStrategy</code> function. If you don&#39;t do this, each strategy will have a default name (e.g., &#39;jwt&#39; for jwt-strategy):</p>
+<pre><code class="language-typescript">
+export class JwtStrategy extends PassportStrategy(Strategy, &#39;myjwt&#39;)</code></pre>
+<p>Then, you refer to this via a decorator like <code>@AuthGuard(&#39;myjwt&#39;)</code>.</p>
+<h4 appAnchor id="graphql"><span>GraphQL</span></h4>
+<p>In order to use an AuthGuard with <a target='_blank' href="https://docs.nestjs.com/graphql/quick-start">GraphQL</a>, extend the built-in AuthGuard class and override the getRequest() method.</p>
+<pre><code class="language-typescript">
+@Injectable()
+export class GqlAuthGuard extends AuthGuard(&#39;jwt&#39;) &#123;
+  getRequest(context: ExecutionContext) &#123;
+    const ctx = GqlExecutionContext.create(context);
+    return ctx.getContext().req;
+  &#125;
+&#125;</code></pre>
+<p>To use the above construct, be sure to pass the request (<code>req</code>) object as part of the context value in the GraphQL Module settings:</p>
+<pre><code class="language-typescript">
+GraphQLModule.forRoot(&#123;
+  context: (&#123; req &#125;) =&gt; (&#123; req &#125;),
+&#125;);</code></pre>
+<p>To get the current authenticated user in your graphql resolver, you can define a User decorator:</p>
+<pre><code class="language-typescript">
+import &#123; createParamDecorator &#125; from &#39;@nestjs/common&#39;;
+
+export const CurrentUser = createParamDecorator(
+  (data, [root, args, ctx, info]) =&gt; ctx.req.user,
+);</code></pre>
+<p>To use above decorator in your resolver, be sure to include it as a parameter of your query or mutation:</p>
+<pre><code class="language-typescript">
+@Query(returns =&gt; User)
+@UseGuards(GqlAuthGuard)
+whoAmI(@CurrentUser() user: User) &#123;
+  return this.userService.findById(user.id);
+&#125;</code></pre>
+
+</div>
+

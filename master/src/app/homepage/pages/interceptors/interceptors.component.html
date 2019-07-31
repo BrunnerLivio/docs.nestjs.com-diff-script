@@ -1,0 +1,304 @@
+<div class="content" #contentReference>
+      <div class="github-links">
+        <a href="https://github.com/nestjs/docs.nestjs.com/edit/master/content/interceptors.md" aria-label="Suggest Edits" title="Suggest Edits">
+          <i class="material-icons" aria-hidden="true" role="img">mode_edit</i>
+        </a>
+      </div>
+      <h3 id="interceptors">Interceptors</h3>
+<p>An interceptor is a class annotated with the <code>@Injectable()</code> decorator. Interceptors should implement the <code>NestInterceptor</code> interface.</p>
+<figure><img src="/assets/Interceptors_1.png" /></figure>
+
+<p>Interceptors have a set of useful capabilities which are inspired by the <a target="_blank" href="https://en.wikipedia.org/wiki/Aspect-oriented_programming">Aspect Oriented Programming</a> (AOP) technique. They make it possible to:</p>
+<ul>
+<li>bind <strong>extra logic</strong> before / after method execution</li>
+<li><strong>transform</strong> the result returned from a function</li>
+<li><strong>transform</strong> the exception thrown from a function</li>
+<li><strong>extend</strong> the basic function behavior</li>
+<li>completely <strong>override</strong> a function depending on specific conditions (e.g., for caching purposes)</li>
+</ul>
+<h4 appAnchor id="basics"><span>Basics</span></h4>
+<p>Each interceptor implements the <code>intercept()</code> method, which takes two arguments. The first one is the <code>ExecutionContext</code> instance (exactly the same object as for <a routerLink="/guards">guards</a>). The <code>ExecutionContext</code> inherits from <code>ArgumentsHost</code>. We saw <code>ArgumentsHost</code> before in the exception filters chapter. There, we saw that it&#39;s a wrapper around arguments that have been passed to the original handler, and contains different arguments arrays based on the type of the application.  You can refer back to the <a target="_blank" href="https://docs.nestjs.com/exception-filters#arguments-host">exception filters</a> for more on this topic.</p>
+<h4 appAnchor id="execution-context"><span>Execution context</span></h4>
+<p>By extending <code>ArgumentsHost</code>, <code>ExecutionContext</code> provides additional details about the current execution process. Here&#39;s what it looks like:</p>
+<pre><code class="language-typescript">
+export interface ExecutionContext extends ArgumentsHost &#123;
+  getClass&lt;T = any&gt;(): Type&lt;T&gt;;
+  getHandler(): Function;
+&#125;</code></pre>
+<p>The <code>getHandler()</code> method returns a reference to the route handler about to be invoked. The <code>getClass()</code> method returns the type of the <code>Controller</code> class which this particular handler belongs to. For example, if the currently processed request is a <code>POST</code> request, destined for the <code>create()</code> method on the <code>CatsController</code>, <code>getHandler()</code> will return a reference to the <code>create()</code> method and <code>getClass()</code> will return a <code>CatsController</code> <strong>type</strong> (not instance).</p>
+<h4 appAnchor id="call-handler"><span>Call handler</span></h4>
+<p>The second argument is a <code>CallHandler</code>. The <code>CallHandler</code> interface implements the <code>handle()</code> method, which you can use to invoke the route handler method at some point in your interceptor.  If you don&#39;t call the <code>handle()</code> method in your implementation of the <code>intercept()</code> method, the route handler method won&#39;t be executed at all.</p>
+<p>This approach means that the <code>intercept()</code> method effectively <strong>wraps</strong> the request/response stream. As a result, you may implement custom logic <strong>both before and after</strong> the execution of the final route handler. It&#39;s clear that you can write code in your <code>intercept()</code> method that executes <strong>before</strong> calling <code>handle()</code>, but how do you affect what happens afterward?  Because the <code>handle()</code> method returns an <code>Observable</code>, we can use powerful <a target="_blank" href="https://github.com/ReactiveX/rxjs">RxJS</a> operators to further manipulate the response. Using Aspect Oriented Programming terminology, the invocation of the route handler (i.e., calling <code>handle()</code>) is called a <a target="_blank" href="https://en.wikipedia.org/wiki/Pointcut">Pointcut</a>, indicating that it&#39;s the point at which our additional logic is inserted.</p>
+<p>Consider, for example, an incoming <code>POST /cats</code> request. This request is destined for the <code>create()</code> handler defined inside the <code>CatsController</code>. If an interceptor which does not call the <code>handle()</code> method is called anywhere along the way, the <code>create()</code> method won&#39;t be executed. Once <code>handle()</code> is called (and its <code>Observable</code> has been returned), the <code>create()</code> handler will be triggered. And once the response stream is received via the <code>Observable</code>, additional operations can be performed on the stream, and a final result returned to the caller.</p>
+<h4 appAnchor id="aspect-interception"><span>Aspect interception</span></h4>
+<p>The first use case we&#39;ll look at is to use an interceptor to log user interaction (e.g., storing user calls, asynchronously dispatching events or calculating a timestamp). We show a simple <code>LoggingInterceptor</code> below:</p>
+
+<span class="filename">
+  {{ 'logging.interceptor' | extension: appc98e1309bc62251faeb449b53f0cefce98de0b67.isJsActive }}
+<app-tabs #appc98e1309bc62251faeb449b53f0cefce98de0b67></app-tabs>
+</span><pre [class.hide]="appc98e1309bc62251faeb449b53f0cefce98de0b67.isJsActive"><code class="language-typescript">
+import &#123; Injectable, NestInterceptor, ExecutionContext, CallHandler &#125; from &#39;@nestjs/common&#39;;
+import &#123; Observable &#125; from &#39;rxjs&#39;;
+import &#123; tap &#125; from &#39;rxjs/operators&#39;;
+
+@Injectable()
+export class LoggingInterceptor implements NestInterceptor &#123;
+  intercept(context: ExecutionContext, next: CallHandler): Observable&lt;any&gt; &#123;
+    console.log(&#39;Before...&#39;);
+
+    const now = Date.now();
+    return next
+      .handle()
+      .pipe(
+        tap(() =&gt; console.log(`After... $&#123;Date.now() - now&#125;ms`)),
+      );
+  &#125;
+&#125;</code></pre>
+<pre [class.hide]="!appc98e1309bc62251faeb449b53f0cefce98de0b67.isJsActive"><code class="language-typescript">
+import &#123; Injectable &#125; from &#39;@nestjs/common&#39;;
+import &#123; Observable &#125; from &#39;rxjs&#39;;
+import &#123; tap &#125; from &#39;rxjs/operators&#39;;
+
+@Injectable()
+export class LoggingInterceptor &#123;
+  intercept(context, next) &#123;
+    console.log(&#39;Before...&#39;);
+
+    const now = Date.now();
+    return next
+      .handle()
+      .pipe(
+        tap(() =&gt; console.log(`After... $&#123;Date.now() - now&#125;ms`)),
+      );
+  &#125;
+&#125;</code></pre><blockquote class="
+info "><strong>Hint</strong> The <code>NestInterceptor&lt;T, R&gt;</code> is a generic interface in which <code>T</code> indicates the type of an <code>Observable&lt;T&gt;</code> (supporting the response stream), and <code>R</code> is the type of the value wrapped by <code>Observable&lt;R&gt;</code>.
+</blockquote>
+<blockquote class="
+warning "><strong>Notice</strong> Interceptors, like controllers, providers, guards, and so on, can <strong>inject dependencies</strong> through their <code>constructor</code>.
+</blockquote>
+<p>Since <code>handle()</code> returns an RxJS <code>Observable</code>, we have a wide choice of operators we can use to manipulate the stream. In the example above, we used the <code>tap()</code> operator, which invokes our anonymous logging function upon graceful or exceptional termination of the observable stream, but doesn&#39;t otherwise interfere with the response cycle.</p>
+<h4 appAnchor id="binding-interceptors"><span>Binding interceptors</span></h4>
+<p>In order to set up the interceptor, we use the <code>@UseInterceptors()</code> decorator imported from the <code>@nestjs/common</code> package. Like <a routerLink="/pipes">pipes</a> and <a routerLink="/guards">guards</a>, interceptors can be controller-scoped, method-scoped, or global-scoped.</p>
+
+<span class="filename">
+  {{ 'cats.controller' | extension: appecce247b1d372f45f200aa06e458f6c52f56bbff.isJsActive }}
+<app-tabs #appecce247b1d372f45f200aa06e458f6c52f56bbff></app-tabs>
+</span><pre><code class="language-typescript">
+@UseInterceptors(LoggingInterceptor)
+export class CatsController &#123;&#125;</code></pre><blockquote class="
+info "><strong>Hint</strong> The <code>@UseInterceptors()</code> decorator is imported from the <code>@nestjs/common</code> package.
+</blockquote>
+<p>Using the above construction, each route handler defined in <code>CatsController</code> will use <code>LoggingInterceptor</code>. When someone calls the <code>GET /cats</code> endpoint, you&#39;ll see the following output in your standard output:</p>
+<pre><code class="language-typescript">
+Before...
+After... 1ms</code></pre>
+<p>Note that we passed the <code>LoggingInterceptor</code> type (instead of an instance), leaving responsibility for instantiation to the framework and enabling dependency injection. As with pipes, guards, and exception filters, we can also pass an in-place instance:</p>
+
+<span class="filename">
+  {{ 'cats.controller' | extension: app7fbf833a02a839af897bd71926813c8910967ec3.isJsActive }}
+<app-tabs #app7fbf833a02a839af897bd71926813c8910967ec3></app-tabs>
+</span><pre><code class="language-typescript">
+@UseInterceptors(new LoggingInterceptor())
+export class CatsController &#123;&#125;</code></pre><p>As mentioned, the construction above attaches the interceptor to every handler declared by this controller. If we want to restrict the interceptor&#39;s scope to a single method, we simply apply the decorator at the <strong>method level</strong>.</p>
+<p>In order to set up a global interceptor, we use the <code>useGlobalInterceptors()</code> method of the Nest application instance:</p>
+<pre><code class="language-typescript">
+const app = await NestFactory.create(AppModule);
+app.useGlobalInterceptors(new LoggingInterceptor());</code></pre>
+<p>Global interceptors are used across the whole application, for every controller and every route handler. In terms of dependency injection, global interceptors registered from outside of any module (with <code>useGlobalInterceptors()</code>, as in the example above) cannot inject dependencies since this is done outside the context of any module. In order to solve this issue, you can set up an interceptor <strong>directly from any module</strong> using the following construction:</p>
+
+<span class="filename">
+  {{ 'app.module' | extension: app0c741de60153716e2e9c829ac58c64264c0e2bac.isJsActive }}
+<app-tabs #app0c741de60153716e2e9c829ac58c64264c0e2bac></app-tabs>
+</span><pre><code class="language-typescript">
+import &#123; Module &#125; from &#39;@nestjs/common&#39;;
+import &#123; APP_INTERCEPTOR &#125; from &#39;@nestjs/core&#39;;
+
+@Module(&#123;
+  providers: [
+    &#123;
+      provide: APP_INTERCEPTOR,
+      useClass: LoggingInterceptor,
+    &#125;,
+  ],
+&#125;)
+export class AppModule &#123;&#125;</code></pre><blockquote class="
+info "><strong>Hint</strong> When using this approach to perform dependency injection for the interceptor, note that regardless of the
+module where this construction is employed, the interceptor is, in fact, global. Where should this be done? Choose the module
+where the interceptor (<code>LoggingInterceptor</code> in the example above) is defined. Also, <code>useClass</code> is not the only way of dealing with custom provider registration. Learn more <a routerLink="/fundamentals/custom-providers">here</a>.
+</blockquote>
+<h4 appAnchor id="response-mapping"><span>Response mapping</span></h4>
+<p>We already know that <code>handle()</code> returns an <code>Observable</code>. The stream contains the value <strong>returned</strong> from the route handler, and thus we can easily mutate it using RxJS&#39;s <code>map()</code> operator.</p>
+<blockquote class="
+warning "><strong>Warning</strong> The response mapping feature doesn&#39;t work with the library-specific response strategy (using the <code>@Res()</code> object directly is forbidden).
+</blockquote>
+<p>Let&#39;s create the <code>TransformInterceptor</code>, which will modify each response in a trivial way to demonstrate the process.  It will use RxJS&#39;s <code>map()</code> operator to assign the response object to the <code>data</code> property of a newly created object, returning the new object to the client.</p>
+
+<span class="filename">
+  {{ 'transform.interceptor' | extension: app391a7904b3189fac7fada87f7ffee7dfcb67fcda.isJsActive }}
+<app-tabs #app391a7904b3189fac7fada87f7ffee7dfcb67fcda></app-tabs>
+</span><pre [class.hide]="app391a7904b3189fac7fada87f7ffee7dfcb67fcda.isJsActive"><code class="language-typescript">
+import &#123; Injectable, NestInterceptor, ExecutionContext, CallHandler &#125; from &#39;@nestjs/common&#39;;
+import &#123; Observable &#125; from &#39;rxjs&#39;;
+import &#123; map &#125; from &#39;rxjs/operators&#39;;
+
+export interface Response&lt;T&gt; &#123;
+  data: T;
+&#125;
+
+@Injectable()
+export class TransformInterceptor&lt;T&gt; implements NestInterceptor&lt;T, Response&lt;T&gt;&gt; &#123;
+  intercept(context: ExecutionContext, next: CallHandler): Observable&lt;Response&lt;T&gt;&gt; &#123;
+    return next.handle().pipe(map(data =&gt; (&#123; data &#125;)));
+  &#125;
+&#125;</code></pre>
+<pre [class.hide]="!app391a7904b3189fac7fada87f7ffee7dfcb67fcda.isJsActive"><code class="language-typescript">
+import &#123; Injectable &#125; from &#39;@nestjs/common&#39;;
+import &#123; map &#125; from &#39;rxjs/operators&#39;;
+
+@Injectable()
+export class TransformInterceptor &#123;
+  intercept(context, next) &#123;
+    return next.handle().pipe(map(data =&gt; (&#123; data &#125;)));
+  &#125;
+&#125;</code></pre><blockquote class="
+info "><strong>Hint</strong> Nest interceptors work with both synchronous and asynchronous <code>intercept()</code> methods. You can simply switch the method to <code>async</code> if necessary.
+</blockquote>
+<p>With the above construction, when someone calls the <code>GET /cats</code> endpoint, the response would look like the following (assuming that route handler returns an empty array <code>[]</code>):</p>
+<pre><code class="language-json">
+&#123;
+  &quot;data&quot;: []
+&#125;</code></pre>
+<p>Interceptors have great value in creating re-usable solutions to requirements that occur across an entire application.
+For example, imagine we need to transform each occurrence of a <code>null</code> value to an empty string <code>&#39;&#39;</code>. We can do it using one line of code and bind the interceptor globally so that it will automatically be used by each registered handler.</p>
+
+<span class="filename">
+<app-tabs #appd8fa55cdb73d8533f2c7df2a72f7d9c5eae56ed6></app-tabs>
+</span><pre [class.hide]="appd8fa55cdb73d8533f2c7df2a72f7d9c5eae56ed6.isJsActive"><code class="language-typescript">
+import &#123; Injectable, NestInterceptor, ExecutionContext, CallHandler &#125; from &#39;@nestjs/common&#39;;
+import &#123; Observable &#125; from &#39;rxjs&#39;;
+import &#123; map &#125; from &#39;rxjs/operators&#39;;
+
+@Injectable()
+export class ExcludeNullInterceptor implements NestInterceptor &#123;
+  intercept(context: ExecutionContext, next: CallHandler): Observable&lt;any&gt; &#123;
+    return next
+      .handle()
+      .pipe(map(value =&gt; value === null ? &#39;&#39; : value ));
+  &#125;
+&#125;</code></pre>
+<pre [class.hide]="!appd8fa55cdb73d8533f2c7df2a72f7d9c5eae56ed6.isJsActive"><code class="language-typescript">
+import &#123; Injectable &#125; from &#39;@nestjs/common&#39;;
+import &#123; map &#125; from &#39;rxjs/operators&#39;;
+
+@Injectable()
+export class ExcludeNullInterceptor &#123;
+  intercept(context, next) &#123;
+    return next
+      .handle()
+      .pipe(map(value =&gt; value === null ? &#39;&#39; : value ));
+  &#125;
+&#125;</code></pre><h4 appAnchor id="exception-mapping"><span>Exception mapping</span></h4>
+<p>Another interesting use-case is to take advantage of RxJS&#39;s <code>catchError()</code> operator to override thrown exceptions:</p>
+
+<span class="filename">
+  {{ 'errors.interceptor' | extension: app44d22c9c40b27144e52d2758703026ee75983f6f.isJsActive }}
+<app-tabs #app44d22c9c40b27144e52d2758703026ee75983f6f></app-tabs>
+</span><pre [class.hide]="app44d22c9c40b27144e52d2758703026ee75983f6f.isJsActive"><code class="language-typescript">
+import &#123;
+  Injectable,
+  NestInterceptor,
+  ExecutionContext,
+  BadGatewayException,
+  CallHandler,
+&#125; from &#39;@nestjs/common&#39;;
+import &#123; Observable, throwError &#125; from &#39;rxjs&#39;;
+import &#123; catchError &#125; from &#39;rxjs/operators&#39;;
+
+@Injectable()
+export class ErrorsInterceptor implements NestInterceptor &#123;
+  intercept(context: ExecutionContext, next: CallHandler): Observable&lt;any&gt; &#123;
+    return next
+      .handle()
+      .pipe(
+        catchError(err =&gt; throwError(new BadGatewayException())),
+      );
+  &#125;
+&#125;</code></pre>
+<pre [class.hide]="!app44d22c9c40b27144e52d2758703026ee75983f6f.isJsActive"><code class="language-typescript">
+import &#123; Injectable, BadGatewayException &#125; from &#39;@nestjs/common&#39;;
+import &#123; throwError &#125; from &#39;rxjs&#39;;
+import &#123; catchError &#125; from &#39;rxjs/operators&#39;;
+
+@Injectable()
+export class ErrorsInterceptor &#123;
+  intercept(context, next) &#123;
+    return next
+      .handle()
+      .pipe(
+        catchError(err =&gt; throwError(new BadGatewayException())),
+      );
+  &#125;
+&#125;</code></pre><h4 appAnchor id="stream-overriding"><span>Stream overriding</span></h4>
+<p>There are several reasons why we may sometimes want to completely prevent calling the handler and return a different value instead. An obvious example is to implement a cache to improve response time. Let&#39;s take a look at a simple <strong>cache interceptor</strong> that returns its response from a cache. In a realistic example, we&#39;d want to consider other factors like TTL, cache invalidation, cache size, etc., but that&#39;s beyond the scope of this discussion.  Here we&#39;ll provide a basic example that demonstrates the main concept.</p>
+
+<span class="filename">
+  {{ 'cache.interceptor' | extension: app3a5488a37d58e6dce4fec1d0410155ba44fbfb4b.isJsActive }}
+<app-tabs #app3a5488a37d58e6dce4fec1d0410155ba44fbfb4b></app-tabs>
+</span><pre [class.hide]="app3a5488a37d58e6dce4fec1d0410155ba44fbfb4b.isJsActive"><code class="language-typescript">
+import &#123; Injectable, NestInterceptor, ExecutionContext, CallHandler &#125; from &#39;@nestjs/common&#39;;
+import &#123; Observable, of &#125; from &#39;rxjs&#39;;
+
+@Injectable()
+export class CacheInterceptor implements NestInterceptor &#123;
+  intercept(context: ExecutionContext, next: CallHandler): Observable&lt;any&gt; &#123;
+    const isCached = true;
+    if (isCached) &#123;
+      return of([]);
+    &#125;
+    return next.handle();
+  &#125;
+&#125;</code></pre>
+<pre [class.hide]="!app3a5488a37d58e6dce4fec1d0410155ba44fbfb4b.isJsActive"><code class="language-typescript">
+import &#123; Injectable &#125; from &#39;@nestjs/common&#39;;
+import &#123; of &#125; from &#39;rxjs&#39;;
+
+@Injectable()
+export class CacheInterceptor &#123;
+  intercept(context, next) &#123;
+    const isCached = true;
+    if (isCached) &#123;
+      return of([]);
+    &#125;
+    return next.handle();
+  &#125;
+&#125;</code></pre><p>Our <code>CacheInterceptor</code> has a hardcoded <code>isCached</code> variable and a hardcoded response <code>[]</code> as well. The key point to note is that we return a new stream here, created by the  RxJS <code>of()</code> operator, therefore the route handler <strong>won&#39;t be called</strong> at all. When someone calls an endpoint that makes use of <code>CacheInterceptor</code>, the response (a hardcoded, empty array) will be returned immediately. In order to create a generic solution, you can take advantage of <code>Reflector</code> and create a custom decorator. The <code>Reflector</code> is well described in the <a routerLink="/guards">guards</a> chapter.</p>
+<h4 appAnchor id="more-operators"><span>More operators</span></h4>
+<p>The possibility of manipulating the stream using RxJS operators gives us many capabilities. Let&#39;s consider another common use case. Imagine you would like to handle <strong>timeouts</strong> on route requests. When your endpoint doesn&#39;t return anything after a period of time, you want to terminate with an error response.  The following construction enables this:</p>
+
+<span class="filename">
+  {{ 'timeout.interceptor' | extension: app846b9cbeee52696a1fb63027032da0fd7ce82518.isJsActive }}
+<app-tabs #app846b9cbeee52696a1fb63027032da0fd7ce82518></app-tabs>
+</span><pre [class.hide]="app846b9cbeee52696a1fb63027032da0fd7ce82518.isJsActive"><code class="language-typescript">
+import &#123; Injectable, NestInterceptor, ExecutionContext, CallHandler &#125; from &#39;@nestjs/common&#39;;
+import &#123; Observable &#125; from &#39;rxjs&#39;;
+import &#123; timeout &#125; from &#39;rxjs/operators&#39;;
+
+@Injectable()
+export class TimeoutInterceptor implements NestInterceptor &#123;
+  intercept(context: ExecutionContext, next: CallHandler): Observable&lt;any&gt; &#123;
+    return next.handle().pipe(timeout(5000))
+  &#125;
+&#125;</code></pre>
+<pre [class.hide]="!app846b9cbeee52696a1fb63027032da0fd7ce82518.isJsActive"><code class="language-typescript">
+import &#123; Injectable &#125; from &#39;@nestjs/common&#39;;
+import &#123; timeout &#125; from &#39;rxjs/operators&#39;;
+
+@Injectable()
+export class TimeoutInterceptor &#123;
+  intercept(context, next) &#123;
+    return next.handle().pipe(timeout(5000))
+  &#125;
+&#125;</code></pre><p>After 5 seconds, request processing will be canceled.</p>
+
+    </div>

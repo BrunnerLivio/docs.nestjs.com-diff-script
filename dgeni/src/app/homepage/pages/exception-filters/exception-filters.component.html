@@ -1,0 +1,318 @@
+
+<div class="content" #contentReference>
+  <div class="github-links">
+    <a
+      href="https://github.com/nestjs/docs.nestjs.com/edit/master/content/exception-filters.md"
+      aria-label="Suggest Edits"
+      title="Suggest Edits"
+    >
+      <i class="material-icons" aria-hidden="true" role="img">mode_edit</i>
+    </a>
+  </div>
+  <h3 id="exception-filters">Exception filters</h3>
+<p>Nest comes with a built-in <strong>exceptions layer</strong> which is responsible for processing all unhandled exceptions across an application. When an exception is not handled by your application code, it is caught by this layer, which then automatically sends an appropriate user-friendly response.</p>
+<figure>
+  <img src="/assets/Filter_1.png" />
+</figure>
+
+<p>Out of the box, this action is performed by a built-in <strong>global exception filter</strong>, which handles exceptions of type <code>HttpException</code> (and subclasses of it). When an exception is <strong>unrecognized</strong> (is neither <code>HttpException</code> nor a class that inherits from <code>HttpException</code>), the client receives the following default JSON response:</p>
+<pre><code class="language-json">
+&#123;
+  &quot;statusCode&quot;: 500,
+  &quot;message&quot;: &quot;Internal server error&quot;
+&#125;</code></pre>
+<h4 appAnchor id="base-exceptions"><span>Base exceptions</span></h4>
+<p>The built-in <code>HttpException</code> class is exposed from the <code>@nestjs/common</code> package.</p>
+<p>In the <code>CatsController</code>, we have a <code>findAll()</code> method (a <code>GET</code> route handler). Let&#39;s assume that this route handler throws an exception for some reason. To demonstrate this, we&#39;ll hard-code it as follows:</p>
+
+<span class="filename">
+  {{ 'cats.controller' | extension: app84318c68735d4049e3b9df77b5be8310ed2aac78.isJsActive }}
+<app-tabs #app84318c68735d4049e3b9df77b5be8310ed2aac78></app-tabs>
+</span><pre><code class="language-typescript">
+@Get()
+async findAll() &#123;
+  throw new HttpException(&#39;Forbidden&#39;, HttpStatus.FORBIDDEN);
+&#125;</code></pre><blockquote class="
+info "><strong>Hint</strong> We used the <code>HttpStatus</code> here. This is a helper enum imported from the <code>@nestjs/common</code> package.
+</blockquote>
+<p>When the client calls this endpoint, the response looks like this:</p>
+<pre><code class="language-json">
+&#123;
+  &quot;statusCode&quot;: 403,
+  &quot;message&quot;: &quot;Forbidden&quot;
+&#125;</code></pre>
+<p>The <code>HttpException</code> constructor takes two arguments which determine the JSON response body and the <a target='_blank' href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Status">HTTP response status code</a> respectively. The first argument is of type <code>string | object</code>. Pass a string to customize the error message (as shown in the <code>GET</code> handler of the <code>CatsController</code> above). Pass a plain literal <code>object</code> with properties <code>status</code> (the status code to appear in the JSON response body) and <code>error</code> (the message string) in the first parameter, instead of a <code>string</code>, to completely override the response body. The second constructor argument should be the actual HTTP response status code. Here&#39;s an example overriding the entire response body:</p>
+
+<span class="filename">
+  {{ 'cats.controller' | extension: app0ed14a4dd2c53af5551d1d5e9389d4c690e68f5e.isJsActive }}
+<app-tabs #app0ed14a4dd2c53af5551d1d5e9389d4c690e68f5e></app-tabs>
+</span><pre><code class="language-typescript">
+@Get()
+async findAll() &#123;
+  throw new HttpException(&#123;
+    status: HttpStatus.FORBIDDEN,
+    error: &#39;This is a custom message&#39;,
+  &#125;, 403);
+&#125;</code></pre><p>Using the above, this is how the response would look:</p>
+<pre><code class="language-json">
+&#123;
+  &quot;statusCode&quot;: 403,
+  &quot;error&quot;: &quot;This is a custom message&quot;
+&#125;</code></pre>
+<h4 appAnchor id="exceptions-hierarchy"><span>Exceptions hierarchy</span></h4>
+<p>It is good practice to create your own <strong>exceptions hierarchy</strong>. This means that your custom HTTP exceptions should inherit from the base <code>HttpException</code> class. As a result, Nest will recognize your exceptions, and automatically take care of the error responses. Let&#39;s implement such a custom exception:</p>
+
+<span class="filename">
+  {{ 'forbidden.exception' | extension: app2803e73d9a5625c18808a1b2528993f8479e343f.isJsActive }}
+<app-tabs #app2803e73d9a5625c18808a1b2528993f8479e343f></app-tabs>
+</span><pre><code class="language-typescript">
+export class ForbiddenException extends HttpException &#123;
+  constructor() &#123;
+    super(&#39;Forbidden&#39;, HttpStatus.FORBIDDEN);
+  &#125;
+&#125;</code></pre><p>Since <code>ForbiddenException</code> extends the base <code>HttpException</code>, it will work seamlessly with the built-in exception handler, and therefore we can use it inside the <code>findAll()</code> method.</p>
+
+<span class="filename">
+  {{ 'cats.controller' | extension: appccb75ae063bfc2a07b50af2f10ef2452b9c56faf.isJsActive }}
+<app-tabs #appccb75ae063bfc2a07b50af2f10ef2452b9c56faf></app-tabs>
+</span><pre><code class="language-typescript">
+@Get()
+async findAll() &#123;
+  throw new ForbiddenException();
+&#125;</code></pre><h4 appAnchor id="http-exceptions"><span>HTTP exceptions</span></h4>
+<p>In order to reduce the need to write boilerplate code, Nest provides a set of usable exceptions that inherit from the core <code>HttpException</code>. All of them are exposed from the <code>@nestjs/common</code> package:</p>
+<ul>
+<li><code>BadRequestException</code></li>
+<li><code>UnauthorizedException</code></li>
+<li><code>NotFoundException</code></li>
+<li><code>ForbiddenException</code></li>
+<li><code>NotAcceptableException</code></li>
+<li><code>RequestTimeoutException</code></li>
+<li><code>ConflictException</code></li>
+<li><code>GoneException</code></li>
+<li><code>PayloadTooLargeException</code></li>
+<li><code>UnsupportedMediaTypeException</code></li>
+<li><code>UnprocessableEntityException</code></li>
+<li><code>InternalServerErrorException</code></li>
+<li><code>NotImplementedException</code></li>
+<li><code>BadGatewayException</code></li>
+<li><code>ServiceUnavailableException</code></li>
+<li><code>GatewayTimeoutException</code></li>
+</ul>
+<h4 appAnchor id="exception-filters-1"><span>Exception filters</span></h4>
+<p>While the base (built-in) exception filter can automatically handle many cases for you, you may want <strong>full control</strong> over the exceptions layer. For example, you may want to add logging or use a different JSON schema based on some dynamic factors. <strong>Exception filters</strong> are designed for exactly this purpose.</p>
+<p>Let&#39;s create an exception filter which is responsible for catching exceptions that are an instance of the <code>HttpException</code> class, and implementing custom response logic for them.</p>
+
+<span class="filename">
+  {{ 'http-exception.filter' | extension: app321c9035492eb62d70a12742422734e0757c856b.isJsActive }}
+<app-tabs #app321c9035492eb62d70a12742422734e0757c856b></app-tabs>
+</span><pre [class.hide]="app321c9035492eb62d70a12742422734e0757c856b.isJsActive"><code class="language-typescript">
+import &#123; ExceptionFilter, Catch, ArgumentsHost, HttpException &#125; from &#39;@nestjs/common&#39;;
+import &#123; Request, Response &#125; from &#39;express&#39;;
+
+@Catch(HttpException)
+export class HttpExceptionFilter implements ExceptionFilter &#123;
+  catch(exception: HttpException, host: ArgumentsHost) &#123;
+    const ctx = host.switchToHttp();
+    const response = ctx.getResponse&lt;Response&gt;();
+    const request = ctx.getRequest&lt;Request&gt;();
+    const status = exception.getStatus();
+
+    response
+      .status(status)
+      .json(&#123;
+        statusCode: status,
+        timestamp: new Date().toISOString(),
+        path: request.url,
+      &#125;);
+  &#125;
+&#125;</code></pre>
+<pre [class.hide]="!app321c9035492eb62d70a12742422734e0757c856b.isJsActive"><code class="language-typescript">
+import &#123; Catch, HttpException &#125; from &#39;@nestjs/common&#39;;
+
+@Catch(HttpException)
+export class HttpExceptionFilter &#123;
+  catch(exception, host) &#123;
+    const ctx = host.switchToHttp();
+    const response = ctx.getResponse();
+    const request = ctx.getRequest();
+    const status = exception.getStatus();
+
+    response
+      .status(status)
+      .json(&#123;
+        statusCode: status,
+        timestamp: new Date().toISOString(),
+        path: request.url,
+      &#125;);
+  &#125;
+&#125;</code></pre><blockquote class="
+info "><strong>Hint</strong> All exception filters should implement the generic <code>ExceptionFilter&lt;T&gt;</code> interface. This requires you to provide the <code>catch(exception: T, host: ArgumentsHost)</code> method with its indicated signature. <code>T</code> indicates the type of the exception.
+</blockquote>
+<p>The <code>@Catch(HttpException)</code> decorator binds the required metadata to the exception filter, telling Nest that this particular filter is looking for exceptions of type <code>HttpException</code> and nothing else. The <code>@Catch()</code> decorator may take a single parameter, or a comma-separated list. This lets you set up the filter for several types of exceptions at once.</p>
+<h4 appAnchor id="arguments-host"><span>Arguments host</span></h4>
+<p>Let&#39;s look at the parameters of the <code>catch()</code> method. The <code>exception</code> parameter is the exception object currently being processed. The <code>host</code> parameter is an <code>ArgumentsHost</code> object. <code>ArgumentsHost</code> is a wrapper around the arguments that have been passed to the <strong>original</strong> request handler (where the exception originated). It contains a specific arguments array based on the type of the application (and platform which is being used). Here&#39;s what an <code>ArgumentsHost</code> looks like:</p>
+<pre><code class="language-typescript">
+export interface ArgumentsHost &#123;
+  getArgs&lt;T extends Array&lt;any&gt; = any[]&gt;(): T;
+  getArgByIndex&lt;T = any&gt;(index: number): T;
+  switchToRpc(): RpcArgumentsHost;
+  switchToHttp(): HttpArgumentsHost;
+  switchToWs(): WsArgumentsHost;
+&#125;</code></pre>
+<p>The <code>ArgumentsHost</code> supplies us with a set of convenience methods that help to pick the correct arguments from the underlying array, across different application contexts. In other words, <code>ArgumentsHost</code> is nothing more than an <strong>array of arguments</strong>. For example, when the filter is used within the HTTP application context, <code>ArgumentsHost</code> will contain a <code>[request, response]</code> array. However, when the current context is a web sockets application, it will contain a <code>[client, data]</code> array, as appropriate to that context. This approach enables you to access any argument that would eventually be passed to the original handler in your custom <code>catch()</code> method.</p>
+<h4 appAnchor id="binding-filters"><span>Binding filters</span></h4>
+<p>Let&#39;s tie our new <code>HttpExceptionFilter</code> to the <code>CatsController</code>&#39;s <code>create()</code> method.</p>
+
+<span class="filename">
+  {{ 'cats.controller' | extension: app7d9b65820d0d9c1aedb3d48b175c54609b888e25.isJsActive }}
+<app-tabs #app7d9b65820d0d9c1aedb3d48b175c54609b888e25></app-tabs>
+</span><pre [class.hide]="app7d9b65820d0d9c1aedb3d48b175c54609b888e25.isJsActive"><code class="language-typescript">
+@Post()
+@UseFilters(new HttpExceptionFilter())
+async create(@Body() createCatDto: CreateCatDto) &#123;
+  throw new ForbiddenException();
+&#125;</code></pre>
+<pre [class.hide]="!app7d9b65820d0d9c1aedb3d48b175c54609b888e25.isJsActive"><code class="language-typescript">
+@Post()
+@UseFilters(new HttpExceptionFilter())
+@Bind(Body())
+async create(createCatDto) &#123;
+  throw new ForbiddenException();
+&#125;</code></pre><blockquote class="
+info "><strong>Hint</strong> The <code>@UseFilters()</code> decorator is imported from the <code>@nestjs/common</code> package.
+</blockquote>
+<p>We have used the <code>@UseFilters()</code> decorator here. Similar to the <code>@Catch()</code> decorator, it can take a single filter instance, or a comma-separated list of filter instances. Here, we created the instance of <code>HttpExceptionFilter</code> in place. Alternatively, you may pass the class (instead of an instance), leaving responsibility for instantiation to the framework, and enabling <strong>dependency injection</strong>.</p>
+
+<span class="filename">
+  {{ 'cats.controller' | extension: app7a0525641ab676eb94966f708cd860975c0c4aa4.isJsActive }}
+<app-tabs #app7a0525641ab676eb94966f708cd860975c0c4aa4></app-tabs>
+</span><pre [class.hide]="app7a0525641ab676eb94966f708cd860975c0c4aa4.isJsActive"><code class="language-typescript">
+@Post()
+@UseFilters(HttpExceptionFilter)
+async create(@Body() createCatDto: CreateCatDto) &#123;
+  throw new ForbiddenException();
+&#125;</code></pre>
+<pre [class.hide]="!app7a0525641ab676eb94966f708cd860975c0c4aa4.isJsActive"><code class="language-typescript">
+@Post()
+@UseFilters(HttpExceptionFilter)
+@Bind(Body())
+async create(createCatDto) &#123;
+  throw new ForbiddenException();
+&#125;</code></pre><blockquote class="
+info "><strong>Hint</strong> Prefer applying filters by using classes instead of instances when possible. It reduces <strong>memory usage</strong> since Nest can easily reuse instances of the same class across your entire module.
+</blockquote>
+<p>In the example above, the <code>HttpExceptionFilter</code> is applied only to the single <code>create()</code> route handler, making it method-scoped. Exception filters can be scoped at different levels: method-scoped, controller-scoped, or global-scoped. For example, to set up a filter as controller-scoped, you would do the following:</p>
+
+<span class="filename">
+  {{ 'cats.controller' | extension: app7d588ce823141e719b1e14f797a2d014f1712ebb.isJsActive }}
+<app-tabs #app7d588ce823141e719b1e14f797a2d014f1712ebb></app-tabs>
+</span><pre><code class="language-typescript">
+@UseFilters(new HttpExceptionFilter())
+export class CatsController &#123;&#125;</code></pre><p>This construction sets up the <code>HttpExceptionFilter</code> for every route handler defined inside the <code>CatsController</code>.</p>
+<p>To create a global-scoped filter, you would do the following:</p>
+
+<span class="filename">
+  {{ 'main' | extension: app35bbb43e86ec699df7200d88b93ac65a20388c92.isJsActive }}
+<app-tabs #app35bbb43e86ec699df7200d88b93ac65a20388c92></app-tabs>
+</span><pre><code class="language-typescript">
+async function bootstrap() &#123;
+  const app = await NestFactory.create(AppModule);
+  app.useGlobalFilters(new HttpExceptionFilter());
+  await app.listen(3000);
+&#125;
+bootstrap();</code></pre><blockquote class="
+warning "><strong>Warning</strong> The <code>useGlobalFilters()</code> method does not set up filters for gateways or hybrid applications.
+</blockquote>
+<p>Global-scoped filters are used across the whole application, for every controller and every route handler. In terms of dependency injection, global filters registered from outside of any module (with <code>useGlobalFilters()</code> as in the example above) cannot inject dependencies since this is done outside the context of any module. In order to solve this issue, you can register a global-scoped filter <strong>directly from any module</strong> using the following construction:</p>
+
+<span class="filename">
+  {{ 'app.module' | extension: appe5d334adffc2a967b27b0d8bb980904625e73083.isJsActive }}
+<app-tabs #appe5d334adffc2a967b27b0d8bb980904625e73083></app-tabs>
+</span><pre><code class="language-typescript">
+import &#123; Module &#125; from &#39;@nestjs/common&#39;;
+import &#123; APP_FILTER &#125; from &#39;@nestjs/core&#39;;
+
+@Module(&#123;
+  providers: [
+    &#123;
+      provide: APP_FILTER,
+      useClass: HttpExceptionFilter,
+    &#125;,
+  ],
+&#125;)
+export class AppModule &#123;&#125;</code></pre><blockquote class="
+info "><strong>Hint</strong> When using this approach to perform dependency injection for the filter, note that regardless of the module where this construction is employed, the filter is, in fact, global. Where should this be done? Choose the module where the filter (<code>HttpExceptionFilter</code> in the example above) is defined. Also, <code>useClass</code> is not the only way of dealing with custom provider registration. Learn more <a routerLink="/fundamentals/custom-providers">here</a>.
+</blockquote>
+<p>You can add as many filters with this technique as needed; simply add each to the providers array.</p>
+<h4 appAnchor id="catch-everything"><span>Catch everything</span></h4>
+<p>In order to catch <strong>every</strong> unhandled exception (regardless of the exception type), leave the <code>@Catch()</code> decorator&#39;s parameter list empty, e.g., <code>@Catch()</code>.</p>
+<pre><code class="language-typescript">
+import &#123; ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus &#125; from &#39;@nestjs/common&#39;;
+
+@Catch()
+export class AllExceptionsFilter implements ExceptionFilter &#123;
+  catch(exception: unknown, host: ArgumentsHost) &#123;
+    const ctx = host.switchToHttp();
+    const response = ctx.getResponse();
+    const request = ctx.getRequest();
+
+    const status =
+      exception instanceof HttpException
+        ? exception.getStatus()
+        : HttpStatus.INTERNAL_SERVER_ERROR;
+
+    response.status(status).json(&#123;
+      statusCode: status,
+      timestamp: new Date().toISOString(),
+      path: request.url,
+    &#125;);
+  &#125;
+&#125;</code></pre>
+<p>In the example above the filter will catch each exception thrown, regardless of its type (class).</p>
+<h4 appAnchor id="inheritance"><span>Inheritance</span></h4>
+<p>Typically, you&#39;ll create fully customized exception filters crafted to fulfill your application requirements. However, there might be use-cases when you would like to simply extend the built-in default <strong>global exception filter</strong>, and override the behavior based on certain factors.</p>
+<p>In order to delegate exception processing to the base filter, you need to extend <code>BaseExceptionFilter</code> and call the inherited <code>catch()</code> method.</p>
+
+<span class="filename">
+  {{ 'all-exceptions.filter' | extension: appf7c0dd3dacf1f3c38b73698af84e8deec33a2ab1.isJsActive }}
+<app-tabs #appf7c0dd3dacf1f3c38b73698af84e8deec33a2ab1></app-tabs>
+</span><pre [class.hide]="appf7c0dd3dacf1f3c38b73698af84e8deec33a2ab1.isJsActive"><code class="language-typescript">
+import &#123; Catch, ArgumentsHost &#125; from &#39;@nestjs/common&#39;;
+import &#123; BaseExceptionFilter &#125; from &#39;@nestjs/core&#39;;
+
+@Catch()
+export class AllExceptionsFilter extends BaseExceptionFilter &#123;
+  catch(exception: unknown, host: ArgumentsHost) &#123;
+    super.catch(exception, host);
+  &#125;
+&#125;</code></pre>
+<pre [class.hide]="!appf7c0dd3dacf1f3c38b73698af84e8deec33a2ab1.isJsActive"><code class="language-typescript">
+import &#123; Catch &#125; from &#39;@nestjs/common&#39;;
+import &#123; BaseExceptionFilter &#125; from &#39;@nestjs/core&#39;;
+
+@Catch()
+export class AllExceptionsFilter extends BaseExceptionFilter &#123;
+  catch(exception, host) &#123;
+    super.catch(exception, host);
+  &#125;
+&#125;</code></pre><blockquote class="
+warning "><strong>Warning</strong> Method-scoped and Controller-scoped filters that extend the <code>BaseExceptionFilter</code> should not be instantiated with <code>new</code>. Instead, let the framework instantiate them automatically.
+</blockquote>
+<p>The above implementation is just a shell demonstrating the approach. Your implementation of the extended exception filter would include your tailored <strong>business</strong> logic (e.g., handling various conditions).</p>
+<p>Global filters <strong>can</strong> extend the base filter. This can be done in either of two ways.</p>
+<p>The first method is to inject the <code>HttpServer</code> reference when instantiating the custom global filter:</p>
+<pre><code class="language-typescript">
+async function bootstrap() &#123;
+  const app = await NestFactory.create(AppModule);
+
+  const &#123; httpAdapter &#125; = app.get(HttpAdapterHost);
+  app.useGlobalFilters(new AllExceptionsFilter(httpAdapter));
+
+  await app.listen(3000);
+&#125;
+bootstrap();</code></pre>
+<p>The second method is to use the <code>APP_FILTER</code> token <a href="exception-filters#binding-filters">as shown here</a>.</p>
+
+</div>
+

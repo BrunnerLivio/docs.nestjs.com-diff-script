@@ -1,0 +1,483 @@
+<div class="content" #contentReference>
+      <div class="github-links">
+        <a href="https://github.com/nestjs/docs.nestjs.com/edit/master/content/pipes.md" aria-label="Suggest Edits" title="Suggest Edits">
+          <i class="material-icons" aria-hidden="true" role="img">mode_edit</i>
+        </a>
+      </div>
+      <h3 id="pipes">Pipes</h3>
+<p>A pipe is a class annotated with the <code>@Injectable()</code> decorator. Pipes should implement the <code>PipeTransform</code> interface.</p>
+<figure>
+  <img src="/assets/Pipe_1.png" />
+</figure>
+
+<p>Pipes have two typical use cases:</p>
+<ul>
+<li><strong>transformation</strong>: transform input data to the desired output</li>
+<li><strong>validation</strong>: evaluate input data and if valid, simply pass it through unchanged; otherwise, throw an exception when the data is incorrect</li>
+</ul>
+<p>In both cases, pipes operate on the <code>arguments</code> being processed by a <a href="controllers#route-parameters">controller route handler</a>. Nest interposes a pipe just before a method is invoked, and the pipe receives the arguments destined for the method. Any transformation or validation operation takes place at that time, after which the route handler is invoked with any (potentially) transformed arguments.</p>
+<blockquote class="
+info "><strong>Hint</strong> Pipes run inside the exceptions zone. This means that when a Pipe throws an exception it is handled by the exceptions layer (global exceptions filter and any <a routerLink="/exception-filters">exceptions filters</a> that are applied to the current context). Given the above, it should be clear that when an exception is thrown in a Pipe, no controller method is subsequently executed.
+</blockquote>
+<h4 appAnchor id="built-in-pipes"><span>Built-in pipes</span></h4>
+<p>Nest comes with three pipes available right out-of-the-box: <code>ValidationPipe</code>, <code>ParseIntPipe</code> and <code>ParseUUIDPipe</code>. They&#39;re exported from the <code>@nestjs/common</code> package. In order to better understand how they work, let&#39;s build them from scratch.</p>
+<p>Let&#39;s start with the <code>ValidationPipe</code>. Initially, we&#39;ll have it simply take an input value and immediately return the same value, behaving like an identity function.</p>
+
+<span class="filename">
+  {{ 'validation.pipe' | extension: appda930539b04f2f909b0f8477680bf2fff2dc6dba.isJsActive }}
+<app-tabs #appda930539b04f2f909b0f8477680bf2fff2dc6dba></app-tabs>
+</span><pre [class.hide]="appda930539b04f2f909b0f8477680bf2fff2dc6dba.isJsActive"><code class="language-typescript">
+import &#123; PipeTransform, Injectable, ArgumentMetadata &#125; from &#39;@nestjs/common&#39;;
+
+@Injectable()
+export class ValidationPipe implements PipeTransform &#123;
+  transform(value: any, metadata: ArgumentMetadata) &#123;
+    return value;
+  &#125;
+&#125;</code></pre>
+<pre [class.hide]="!appda930539b04f2f909b0f8477680bf2fff2dc6dba.isJsActive"><code class="language-typescript">
+import &#123; Injectable &#125; from &#39;@nestjs/common&#39;;
+
+@Injectable()
+export class ValidationPipe &#123;
+  transform(value, metadata) &#123;
+    return value;
+  &#125;
+&#125;</code></pre><blockquote class="
+info "><strong>Hint</strong> <code>PipeTransform&lt;T, R&gt;</code> is a generic interface in which <code>T</code> indicates the type of the input <code>value</code>, and <code>R</code> indicates the return type of the <code>transform()</code> method.
+</blockquote>
+<p>Every pipe has to provide the <code>transform()</code> method. This method has two parameters:</p>
+<ul>
+<li><code>value</code></li>
+<li><code>metadata</code></li>
+</ul>
+<p>The <code>value</code> is the currently processed argument (before it is received by the route handling method), while <code>metadata</code> is its metadata. The metadata object has these properties:</p>
+<pre><code class="language-typescript">
+export interface ArgumentMetadata &#123;
+  readonly type: &#39;body&#39; | &#39;query&#39; | &#39;param&#39; | &#39;custom&#39;;
+  readonly metatype?: Type&lt;any&gt;;
+  readonly data?: string;
+&#125;</code></pre>
+<p>These properties describe the currently processed argument.</p>
+<table>
+  <tr>
+    <td>
+      <code>type</code>
+    </td>
+    <td>Indicates whether the argument is a body
+      <code>@Body()</code>, query
+      <code>@Query()</code>, param
+      <code>@Param()</code>, or a custom parameter (read more
+      <a routerLink="/custom-decorators">here</a>).</td>
+  </tr>
+  <tr>
+    <td>
+      <code>metatype</code>
+    </td>
+    <td>
+      Provides the metatype of the argument, for example,
+      <code>String</code>. Note: the value is
+      <code>undefined</code> if you either omit a type declaration in the route handler method signature, or use vanilla JavaScript.
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <code>data</code>
+    </td>
+    <td>The string passed to the decorator, for example
+      <code>@Body('string')</code>. It's
+      <code>undefined</code> if you leave the decorator parenthesis empty.</td>
+  </tr>
+</table>
+
+<blockquote class="
+warning "><strong>Warning</strong> TypeScript interfaces disappear during transpilation. Thus, if a method parameter&#39;s type is declared as an interface instead of a class, the <code>metatype</code> value will be <code>Object</code>.
+</blockquote>
+<h4 appAnchor id="validation-use-case"><span>Validation use case</span></h4>
+<p>Let&#39;s take a closer look at the <code>create()</code> method of the <code>CatsController</code>.</p>
+
+<span class="filename">
+<app-tabs #appe5b4e681816f1437062e0524230246365a038d51></app-tabs>
+</span><pre [class.hide]="appe5b4e681816f1437062e0524230246365a038d51.isJsActive"><code class="language-typescript">
+@Post()
+async create(@Body() createCatDto: CreateCatDto) &#123;
+  this.catsService.create(createCatDto);
+&#125;</code></pre>
+<pre [class.hide]="!appe5b4e681816f1437062e0524230246365a038d51.isJsActive"><code class="language-typescript">
+@Post()
+async create(@Body() createCatDto) &#123;
+  this.catsService.create(createCatDto);
+&#125;</code></pre><p>Let&#39;s focus in on the <code>createCatDto</code> body parameter. Its type is <code>CreateCatDto</code>:</p>
+
+<span class="filename">
+  {{ 'create-cat.dto' | extension: app1eaf3cd4d53e6b5161b372c12458b45e9f74f6b1.isJsActive }}
+<app-tabs #app1eaf3cd4d53e6b5161b372c12458b45e9f74f6b1></app-tabs>
+</span><pre><code class="language-typescript">
+export class CreateCatDto &#123;
+  readonly name: string;
+  readonly age: number;
+  readonly breed: string;
+&#125;</code></pre><p>We want to ensure that any incoming request to the create method contains a valid body. So we have to validate the three members of the <code>createCatDto</code> object. We could do this inside the route handler method, but we would break the <strong>single responsibility rule</strong> (SRP). Another approach could be to create a <strong>validator class</strong> and delegate the task there, but we would have to use this validator at the beginning of each method. How about creating a validation middleware? This could be a good idea, but it&#39;s not possible to create <strong>generic middleware</strong> which can be used across the whole application (because middleware is unaware of the <strong>execution context</strong>, including the handler that will be called and any of its parameters).</p>
+<p>It turns out that this is a case ideally suited for a <strong>Pipe</strong>. So let&#39;s go ahead and build one.</p>
+<h4 appAnchor id="object-schema-validation"><span>Object schema validation</span></h4>
+<p>There are several approaches available for object validation. One common approach is to use <strong>schema-based</strong> validation. The <a target="_blank" href="https://github.com/hapijs/joi">Joi</a> library allows you to create schemas in a pretty straightforward way, with a readable API. Let&#39;s look at a pipe that makes use of Joi-based schemas.</p>
+<p>Start by installing the required package:</p>
+<pre><code class="language-bash">
+$ npm install --save @hapi/joi
+$ npm install --save-dev @types/hapi__joi</code></pre>
+<p>In the code sample below, we create a simple class that takes a schema as a <code>constructor</code> argument. We then apply the <code>Joi.validate()</code> method, which validates our incoming argument against the provided schema.</p>
+<p>As noted earlier, a <strong>validation pipe</strong> either returns the value unchanged, or throws an exception.</p>
+<p>In the next section, you&#39;ll see how we supply the appropriate schema for a given controller method using the <code>@UsePipes()</code> decorator.</p>
+
+<span class="filename">
+<app-tabs #app3db5a96f27972626fe25e3d9af9c2c3447a586d8></app-tabs>
+</span><pre [class.hide]="app3db5a96f27972626fe25e3d9af9c2c3447a586d8.isJsActive"><code class="language-typescript">
+import * as Joi from &#39;@hapi/joi&#39;;
+import &#123; PipeTransform, Injectable, ArgumentMetadata, BadRequestException &#125; from &#39;@nestjs/common&#39;;
+
+@Injectable()
+export class JoiValidationPipe implements PipeTransform &#123;
+  constructor(private readonly schema: Object) &#123;&#125;
+
+  transform(value: any, metadata: ArgumentMetadata) &#123;
+    const &#123; error &#125; = Joi.validate(value, this.schema);
+    if (error) &#123;
+      throw new BadRequestException(&#39;Validation failed&#39;);
+    &#125;
+    return value;
+  &#125;
+&#125;</code></pre>
+<pre [class.hide]="!app3db5a96f27972626fe25e3d9af9c2c3447a586d8.isJsActive"><code class="language-typescript">
+import * as Joi from &#39;@hapi/joi&#39;;
+import &#123; Injectable, BadRequestException &#125; from &#39;@nestjs/common&#39;;
+
+@Injectable()
+export class JoiValidationPipe &#123;
+  constructor(schema) &#123;
+    this.schema = schema;
+  &#125;
+
+  transform(value, metadata) &#123;
+    const &#123; error &#125; = Joi.validate(value, this.schema);
+    if (error) &#123;
+      throw new BadRequestException(&#39;Validation failed&#39;);
+    &#125;
+    return value;
+  &#125;
+&#125;</code></pre><h4 appAnchor id="binding-pipes"><span>Binding pipes</span></h4>
+<p>Binding pipes (tying them to the appropriate controller or handler) is very straightforward. We use the <code>@UsePipes()</code> decorator and create a pipe instance, passing it a Joi validation schema.</p>
+
+<span class="filename">
+<app-tabs #app6db5df5885905b4fa2c9e3cc238a725470743c1f></app-tabs>
+</span><pre [class.hide]="app6db5df5885905b4fa2c9e3cc238a725470743c1f.isJsActive"><code class="language-typescript">
+@Post()
+@UsePipes(new JoiValidationPipe(createCatSchema))
+async create(@Body() createCatDto: CreateCatDto) &#123;
+  this.catsService.create(createCatDto);
+&#125;</code></pre>
+<pre [class.hide]="!app6db5df5885905b4fa2c9e3cc238a725470743c1f.isJsActive"><code class="language-typescript">
+@Post()
+@Bind(Body())
+@UsePipes(new JoiValidationPipe(createCatSchema))
+async create(createCatDto) &#123;
+  this.catsService.create(createCatDto);
+&#125;</code></pre><h4 appAnchor id="class-validator"><span>Class validator</span></h4>
+<blockquote class="
+warning "><strong>Warning</strong> The techniques in this section require TypeScript, and are not available if your app is written using vanilla JavaScript.
+</blockquote>
+<p>Let&#39;s look at an alternate implementation of our validation technique.</p>
+<p>Nest works well with the <a target="_blank" href="https://github.com/pleerock/class-validator">class-validator</a> library. This amazing library allows you to use decorator-based validation. Decorator-based validation is extremely powerful, especially when combined with Nest&#39;s <strong>Pipe</strong> capabilities since we have access to the <code>metatype</code> of the processed property. Before we start, we need to install the required packages:</p>
+<pre><code class="language-bash">
+$ npm i --save class-validator class-transformer</code></pre>
+<p>Once these are installed, we can add a few decorators to the <code>CreateCatDto</code> class.</p>
+
+<span class="filename">
+  {{ 'create-cat.dto' | extension: app8f5e167d40e97eb59dd035fcf829193acbb88892.isJsActive }}
+<app-tabs #app8f5e167d40e97eb59dd035fcf829193acbb88892></app-tabs>
+</span><pre><code class="language-typescript">
+import &#123; IsString, IsInt &#125; from &#39;class-validator&#39;;
+
+export class CreateCatDto &#123;
+  @IsString()
+  readonly name: string;
+
+  @IsInt()
+  readonly age: number;
+
+  @IsString()
+  readonly breed: string;
+&#125;</code></pre><blockquote class="
+Info "><strong>Hint</strong> Read more about the class-validator decorators <a target="_blank" href="https://github.com/typestack/class-validator#usage">here</a>.
+</blockquote>
+<p>Now we can create a <code>ValidationPipe</code> class.</p>
+
+<span class="filename">
+  {{ 'validation.pipe' | extension: app151c6e390c72b8aa643e908d2fe3c138f6529041.isJsActive }}
+<app-tabs #app151c6e390c72b8aa643e908d2fe3c138f6529041></app-tabs>
+</span><pre><code class="language-typescript">
+import &#123; PipeTransform, Injectable, ArgumentMetadata, BadRequestException &#125; from &#39;@nestjs/common&#39;;
+import &#123; validate &#125; from &#39;class-validator&#39;;
+import &#123; plainToClass &#125; from &#39;class-transformer&#39;;
+
+@Injectable()
+export class ValidationPipe implements PipeTransform&lt;any&gt; &#123;
+  async transform(value: any, &#123; metatype &#125;: ArgumentMetadata) &#123;
+    if (!metatype || !this.toValidate(metatype)) &#123;
+      return value;
+    &#125;
+    const object = plainToClass(metatype, value);
+    const errors = await validate(object);
+    if (errors.length &gt; 0) &#123;
+      throw new BadRequestException(&#39;Validation failed&#39;);
+    &#125;
+    return value;
+  &#125;
+
+  private toValidate(metatype: Function): boolean &#123;
+    const types: Function[] = [String, Boolean, Number, Array, Object];
+    return !types.includes(metatype);
+  &#125;
+&#125;</code></pre><blockquote class="
+warning "><strong>Notice</strong> Above, we have used the <a target="_blank" href="https://github.com/typestack/class-transformer">class-transformer</a> library. It&#39;s made by the same author as the <strong>class-validator</strong> library, and as a result, they play very well together.
+</blockquote>
+<p>Let&#39;s go through this code. First, note that the <code>transform()</code> function is <code>async</code>. This is possible because Nest supports both synchronous and <strong>asynchronous</strong> pipes. We do this because some of the class-validator validations <a target="_blank" href="https://github.com/typestack/class-validator#custom-validation-classes">can be async</a> (utilize Promises).</p>
+<p>Next note that we are using destructuring to extract the metatype field (extracting just this member from an <code>ArgumentMetadata</code>) into our <code>metatype</code> parameter. This is just shorthand for getting the full <code>ArgumentMetadata</code> and then having an additional statement to assign the metatype variable.</p>
+<p>Next, note the helper function <code>toValidate()</code>. It&#39;s responsible for bypassing the validation step when the current argument being processed is a native JavaScript type (these can&#39;t have schemas attached, so there&#39;s no reason to run them through the validation step).</p>
+<p>Next, we use the class-transformer function <code>plainToClass()</code> to transform our plain JavaScript argument object into a typed object so that we can apply validation. The incoming body, when deserialized from the network request, does not have any type information. Class-validator needs to use the validation decorators we defined for our DTO earlier, so we need to perform this transformation.</p>
+<p>Finally, as noted earlier, since this is a <strong>validation pipe</strong> it either returns the value unchanged, or throws an exception.</p>
+<p>The last step is to bind the <code>ValidationPipe</code>. Pipes, similar to <a routerLink="/exception-filters">exception filters</a>, can be method-scoped, controller-scoped, or global-scoped. Additionally, a pipe can be param-scoped. In the example below, we&#39;ll directly tie the pipe instance to the route param <code>@Body()</code> decorator.</p>
+
+<span class="filename">
+  {{ 'cats.controller' | extension: appab78fe544b2610f3636217ae4b7c7f2ae40f9144.isJsActive }}
+<app-tabs #appab78fe544b2610f3636217ae4b7c7f2ae40f9144></app-tabs>
+</span><pre><code class="language-typescript">
+@Post()
+async create(
+  @Body(new ValidationPipe()) createCatDto: CreateCatDto,
+) &#123;
+  this.catsService.create(createCatDto);
+&#125;</code></pre><p>Param-scoped pipes are useful when the validation logic concerns only one specified parameter.</p>
+<p>Alternatively, to set up a pipe at a method level, use the <code>@UsePipes()</code> decorator.</p>
+
+<span class="filename">
+  {{ 'cats.controller' | extension: app6d7e935441486b8d378a6cb11c33157e7b84ccdb.isJsActive }}
+<app-tabs #app6d7e935441486b8d378a6cb11c33157e7b84ccdb></app-tabs>
+</span><pre><code class="language-typescript">
+@Post()
+@UsePipes(new ValidationPipe())
+async create(@Body() createCatDto: CreateCatDto) &#123;
+  this.catsService.create(createCatDto);
+&#125;</code></pre><blockquote class="
+info "><strong>Hint</strong> The <code>@UsePipes()</code> decorator is imported from the <code>@nestjs/common</code> package.
+</blockquote>
+<p>In the example above, an instance of <code>ValidationPipe</code> has been created immediately in-place. Alternatively, pass the class (not an instance), thus leaving instantiation up to the framework, and enabling <strong>dependency injection</strong>.</p>
+
+<span class="filename">
+  {{ 'cats.controller' | extension: appbc791c6e0d5818ac1b7d2c04c9d875145c8ad806.isJsActive }}
+<app-tabs #appbc791c6e0d5818ac1b7d2c04c9d875145c8ad806></app-tabs>
+</span><pre><code class="language-typescript">
+@Post()
+@UsePipes(ValidationPipe)
+async create(@Body() createCatDto: CreateCatDto) &#123;
+  this.catsService.create(createCatDto);
+&#125;</code></pre><p>Since the <code>ValidationPipe</code> was created to be as generic as possible, let&#39;s set it up as a <strong>global-scoped</strong> pipe, applied to every route handler across the entire application.</p>
+
+<span class="filename">
+  {{ 'main' | extension: appde839cb3a27eaf0cff96133491bb18de6906af6e.isJsActive }}
+<app-tabs #appde839cb3a27eaf0cff96133491bb18de6906af6e></app-tabs>
+</span><pre><code class="language-typescript">
+async function bootstrap() &#123;
+  const app = await NestFactory.create(AppModule);
+  app.useGlobalPipes(new ValidationPipe());
+  await app.listen(3000);
+&#125;
+bootstrap();</code></pre><blockquote class="
+warning "><strong>Notice</strong> In the case of <a href="faq/hybrid-application">hybrid apps</a> the <code>useGlobalPipes()</code> method doesn&#39;t set up pipes for gateways and micro services. For &quot;standard&quot; (non-hybrid) microservice apps, <code>useGlobalPipes()</code> does mount pipes globally.
+</blockquote>
+<p>Global pipes are used across the whole application, for every controller and every route handler. In terms of dependency injection, global pipes registered from outside of any module (with <code>useGlobalPipes()</code> as in the example above) cannot inject dependencies since this is done outside the context of any module. In order to solve this issue, you can set up a global pipe <strong>directly from any module</strong> using the following construction:</p>
+
+<span class="filename">
+  {{ 'app.module' | extension: appe34daae420cf8378ef96bdcc04fbdc601095ebc5.isJsActive }}
+<app-tabs #appe34daae420cf8378ef96bdcc04fbdc601095ebc5></app-tabs>
+</span><pre><code class="language-typescript">
+import &#123; Module &#125; from &#39;@nestjs/common&#39;;
+import &#123; APP_PIPE &#125; from &#39;@nestjs/core&#39;;
+
+@Module(&#123;
+  providers: [
+    &#123;
+      provide: APP_PIPE,
+      useClass: ValidationPipe,
+    &#125;,
+  ],
+&#125;)
+export class AppModule &#123;&#125;</code></pre><blockquote class="
+info "><strong>Hint</strong> When using this approach to perform dependency injection for the pipe, note that regardless of the module where this construction is employed, the pipe is, in fact, global. Where should this be done? Choose the module where the pipe (<code>ValidationPipe</code> in the example above) is defined. Also, <code>useClass</code> is not the only way of dealing with custom provider registration. Learn more <a routerLink="/fundamentals/custom-providers">here</a>.
+</blockquote>
+<h4 appAnchor id="transformation-use-case"><span>Transformation use case</span></h4>
+<p>Validation isn&#39;t the sole use case for <strong>Pipes</strong>. At the beginning of this chapter, we mentioned that a pipe can also <strong>transform</strong> the input data to the desired output. This is possible because the value returned from the <code>transform</code> function completely overrides the previous value of the argument. When is this useful? Consider that sometimes the data passed from the client needs to undergo some change - for example converting a string to an integer - before it can be properly handled by the route handler method. Furthermore, some required data fields may be missing, and we would like to apply default values. <strong>Transformer pipes</strong> can perform these functions by interposing a processing function between the client request and the request handler.</p>
+<p>Here&#39;s a <code>ParseIntPipe</code> which is responsible for parsing a string into an integer value.</p>
+
+<span class="filename">
+  {{ 'parse-int.pipe' | extension: app347475a0c8a9a6e42657349a5f8c26040eb59fa8.isJsActive }}
+<app-tabs #app347475a0c8a9a6e42657349a5f8c26040eb59fa8></app-tabs>
+</span><pre [class.hide]="app347475a0c8a9a6e42657349a5f8c26040eb59fa8.isJsActive"><code class="language-typescript">
+import &#123; PipeTransform, Injectable, ArgumentMetadata, BadRequestException &#125; from &#39;@nestjs/common&#39;;
+
+@Injectable()
+export class ParseIntPipe implements PipeTransform&lt;string, number&gt; &#123;
+  transform(value: string, metadata: ArgumentMetadata): number &#123;
+    const val = parseInt(value, 10);
+    if (isNaN(val)) &#123;
+      throw new BadRequestException(&#39;Validation failed&#39;);
+    &#125;
+    return val;
+  &#125;
+&#125;</code></pre>
+<pre [class.hide]="!app347475a0c8a9a6e42657349a5f8c26040eb59fa8.isJsActive"><code class="language-typescript">
+import &#123; Injectable, BadRequestException&#125; from &#39;@nestjs/common&#39;;
+
+@Injectable()
+export class ParseIntPipe &#123;
+  transform(value, metadata) &#123;
+    const val = parseInt(value, 10);
+    if (isNaN(val)) &#123;
+      throw new BadRequestException(&#39;Validation failed&#39;);
+    &#125;
+    return val;
+  &#125;
+&#125;</code></pre><p>We can simply tie this pipe to the selected param as shown below:</p>
+
+<span class="filename">
+<app-tabs #app0c12869ffebc8bc5056828868157f936aa7245c5></app-tabs>
+</span><pre [class.hide]="app0c12869ffebc8bc5056828868157f936aa7245c5.isJsActive"><code class="language-typescript">
+@Get(&#39;:id&#39;)
+async findOne(@Param(&#39;id&#39;, new ParseIntPipe()) id) &#123;
+  return await this.catsService.findOne(id);
+&#125;</code></pre>
+<pre [class.hide]="!app0c12869ffebc8bc5056828868157f936aa7245c5.isJsActive"><code class="language-typescript">
+@Get(&#39;:id&#39;)
+@Bind(Param(&#39;id&#39;, new ParseIntPipe()))
+async findOne(id) &#123;
+  return await this.catsService.findOne(id);
+&#125;</code></pre><p>If you prefer you can use the <code>ParseUUIDPipe</code> which is responsible for parsing a string and validate if is a UUID.</p>
+
+<span class="filename">
+<app-tabs #app68a5a8adf5a9fc3b91be86aa967a2216dec4b581></app-tabs>
+</span><pre [class.hide]="app68a5a8adf5a9fc3b91be86aa967a2216dec4b581.isJsActive"><code class="language-typescript">
+@Get(&#39;:id&#39;)
+async findOne(@Param(&#39;id&#39;, new ParseUUIDPipe()) id) &#123;
+  return await this.catsService.findOne(id);
+&#125;</code></pre>
+<pre [class.hide]="!app68a5a8adf5a9fc3b91be86aa967a2216dec4b581.isJsActive"><code class="language-typescript">
+@Get(&#39;:id&#39;)
+@Bind(Param(&#39;id&#39;, new ParseUUIDPipe()))
+async findOne(id) &#123;
+  return await this.catsService.findOne(id);
+&#125;</code></pre><blockquote class="
+info "><strong>Hint</strong> When using <code>ParseUUIDPipe()</code> you are parsing UUID in version 3, 4 or 5, if you only requires a specific version of UUID you can pass a version in the pipe options.
+</blockquote>
+<p>With this in place, <code>ParseIntPipe</code> or <code>ParseUUIDPipe</code> will be executed before the request reaches the corresponding handler, ensuring that it will always receive an integer or uuid (according on the used pipe) for the <code>id</code> parameter.</p>
+<p>Another useful case would be to select an <strong>existing user</strong> entity from the database by id:</p>
+
+<span class="filename">
+<app-tabs #appb63ae7da23d8a110db49ab07374616a25a76fe92></app-tabs>
+</span><pre [class.hide]="appb63ae7da23d8a110db49ab07374616a25a76fe92.isJsActive"><code class="language-typescript">
+@Get(&#39;:id&#39;)
+findOne(@Param(&#39;id&#39;, UserByIdPipe) userEntity: UserEntity) &#123;
+  return userEntity;
+&#125;</code></pre>
+<pre [class.hide]="!appb63ae7da23d8a110db49ab07374616a25a76fe92.isJsActive"><code class="language-typescript">
+@Get(&#39;:id&#39;)
+@Bind(Param(&#39;id&#39;, UserByIdPipe))
+findOne(userEntity) &#123;
+  return userEntity;
+&#125;</code></pre><p>We leave the implementation of this pipe to the reader, but note that like all other transformation pipes, it receives an input value (an <code>id</code>) and returns an output value (a <code>UserEntity</code> object). This can make your code more declarative and <a target="_blank" href="https://en.wikipedia.org/wiki/Don%27t_repeat_yourself">DRY</a> by abstracting boilerplate code out of your handler and into a common pipe.</p>
+<h4 appAnchor id="the-built-in-validationpipe"><span>The built-in ValidationPipe</span></h4>
+<p>Fortunately, you don&#39;t have to build these pipes on your own since the <code>ValidationPipe</code> and the <code>ParseIntPipe</code> are provided by Nest out-of-the-box. (Keep in mind that <code>ValidationPipe</code> requires both <code>class-validator</code> and <code>class-transformer</code> packages to be installed).</p>
+<p>The built-in <code>ValidationPipe</code> offers more options than in the sample we built in this chapter, which has been kept basic for the sake of illustrating the basic mechanics of a pipe. You can find lots of examples <a routerLink="/techniques/validation">here</a>.</p>
+<p>One such option is <code>transform</code>. Recall the earlier discussion about deserialized body objects being vanilla JavaScript objects (i.e., not having our DTO type). So far, we&#39;ve used the pipe to validate our payload. You may recall that in the process, we used <code>class-transform</code> to temporarily convert our plain object into a typed object so that we could do the validation. The built-in ValidationPipe can also, optionally, return this converted object. We enable this behavior by passing in a configuration object to the pipe. For this option, pass a config object with the field <code>transform</code> with a value <code>true</code> as shown below:</p>
+
+<span class="filename">
+  {{ 'cats.controller' | extension: appd27a0e7377941c4ddb04a79e8b6c16bb9fb3b11d.isJsActive }}
+<app-tabs #appd27a0e7377941c4ddb04a79e8b6c16bb9fb3b11d></app-tabs>
+</span><pre><code class="language-typescript">
+@Post()
+@UsePipes(new ValidationPipe(&#123; transform: true &#125;))
+async create(@Body() createCatDto: CreateCatDto) &#123;
+  this.catsService.create(createCatDto);
+&#125;</code></pre><blockquote class="
+info "><strong>Hint</strong> The <code>ValidationPipe</code> is imported from the <code>@nestjs/common</code> package.
+</blockquote>
+<p>Because this pipe is based on the <code>class-validator</code> and <code>class-transformer</code> libraries, there are many additional options available. Like the <code>transform</code> option above, you configure these settings via a configuration object passed to the pipe. Following are the built-in options:</p>
+<pre><code class="language-typescript">
+export interface ValidationPipeOptions extends ValidatorOptions &#123;
+  transform?: boolean;
+  disableErrorMessages?: boolean;
+  exceptionFactory?: (errors: ValidationError[]) =&gt; any;
+&#125;</code></pre>
+<p>In addition to these, all <code>class-validator</code> options (inherited from the <code>ValidatorOptions</code> interface) are available:</p>
+<table>
+  <tr>
+    <th>Option</th>
+    <th>Type</th>
+    <th>Description</th>
+  </tr>
+  <tr>
+    <td><code>skipMissingProperties</code></td>
+    <td><code>boolean</code></td>
+    <td>If set to true, validator will skip validation of all properties that are missing in the validating object.</td>
+  </tr>
+  <tr>
+    <td><code>whitelist</code></td>
+    <td><code>boolean</code></td>
+    <td>If set to true, validator will strip validated (returned) object of any properties that do not use any validation decorators.</td>
+  </tr>
+  <tr>
+    <td><code>forbidNonWhitelisted</code></td>
+    <td><code>boolean</code></td>
+    <td>If set to true, instead of stripping non-whitelisted properties validator will throw an exception.</td>
+  </tr>
+  <tr>
+    <td><code>forbidUnknownValues</code></td>
+    <td><code>boolean</code></td>
+    <td>If set to true, attempts to validate unknown objects fail immediately.</td>
+  </tr>
+  <tr>
+    <td><code>disableErrorMessages</code></td>
+    <td><code>boolean</code></td>
+    <td>If set to true, validation errors will not be returned to the client.</td>
+  </tr>
+  <tr>
+    <td><code>exceptionFactory</code></td>
+    <td><code>Function</code></td>
+    <td>Takes an array of the validation errors and returns an exception object to be thrown.</td>
+  </tr>
+  <tr>
+    <td><code>groups</code></td>
+    <td><code>string[]</code></td>
+    <td>Groups to be used during validation of the object.</td>
+  </tr>
+  <tr>
+    <td><code>dismissDefaultMessages</code></td>
+    <td><code>boolean</code></td>
+    <td>If set to true, the validation will not use default messages. Error message always will be <code>undefined</code>        if
+      its not explicitly set.</td>
+  </tr>
+  <tr>
+    <td><code>validationError.target</code></td>
+    <td><code>boolean</code></td>
+    <td>Indicates if target should be exposed in <code>ValidationError</code></td>
+  </tr>
+  <tr>
+    <td><code>validationError.value</code></td>
+    <td><code>boolean</code></td>
+    <td>Indicates if validated value should be exposed in <code>ValidationError</code>.</td>
+  </tr>
+</table>
+
+<blockquote class="
+info "><strong>Notice</strong> Find more information about the <code>class-validator</code> package in its <a target="_blank" href="https://github.com/typestack/class-validator">repository</a>.
+</blockquote>
+
+    </div>

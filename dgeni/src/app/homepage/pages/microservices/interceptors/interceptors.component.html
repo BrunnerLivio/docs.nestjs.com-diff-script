@@ -1,0 +1,30 @@
+
+<div class="content" #contentReference>
+  <div class="github-links">
+    <a
+      href="https://github.com/nestjs/docs.nestjs.com/edit/master/content/microservices/interceptors.md"
+      aria-label="Suggest Edits"
+      title="Suggest Edits"
+    >
+      <i class="material-icons" aria-hidden="true" role="img">mode_edit</i>
+    </a>
+  </div>
+  <h3 id="interceptors">Interceptors</h3>
+<p>There is no difference between <a routerLink="/interceptors">regular interceptors</a> and the microservices interceptors. Here is an example that makes use of a manually instantiated method-scoped interceptor (class-scoped works too):</p>
+
+<span class="filename">
+<app-tabs #appc204071d922a3201642497c99e4ce1c1f89efabc></app-tabs>
+</span><pre [class.hide]="appc204071d922a3201642497c99e4ce1c1f89efabc.isJsActive"><code class="language-typescript">
+@UseInterceptors(new TransformInterceptor())
+@MessagePattern(&#123; cmd: &#39;sum&#39; &#125;)
+accumulate(data: number[]): number &#123;
+  return (data || []).reduce((a, b) =&gt; a + b);
+&#125;</code></pre>
+<pre [class.hide]="!appc204071d922a3201642497c99e4ce1c1f89efabc.isJsActive"><code class="language-typescript">
+@UseInterceptors(new TransformInterceptor())
+@MessagePattern(&#123; cmd: &#39;sum&#39; &#125;)
+accumulate(data) &#123;
+  return (data || []).reduce((a, b) =&gt; a + b);
+&#125;</code></pre>
+</div>
+

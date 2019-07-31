@@ -1,0 +1,36 @@
+<div class="content" #contentReference>
+      <div class="github-links">
+        <a href="https://github.com/nestjs/docs.nestjs.com/edit/master/content/recipes/serve-static.md" aria-label="Suggest Edits" title="Suggest Edits">
+          <i class="material-icons" aria-hidden="true" role="img">mode_edit</i>
+        </a>
+      </div>
+      <h3 id="serve-static">Serve Static</h3>
+<p>In order to serve static content like a Single Page Application (SPA) we can use the <code>ServeStaticModule</code> from the <code>@nestjs/serve-static</code> package.</p>
+<h4 appAnchor id="installation"><span>Installation</span></h4>
+<p>First we need to install the required package:</p>
+<pre><code class="language-bash">
+$ npm install --save @nestjs/serve-static</code></pre>
+<h4 appAnchor id="bootstrap"><span>Bootstrap</span></h4>
+<p>Once the installation process is done, we can import the <code>ServeStaticModule</code> into the root <code>AppModule</code> and configure it by passing in a configuration object to the <code>forRoot()</code> method.</p>
+<pre><code class="language-typescript">
+import &#123; Module &#125; from &#39;@nestjs/common&#39;;
+import &#123; AppController &#125; from &#39;./app.controller&#39;;
+import &#123; AppService &#125; from &#39;./app.service&#39;;
+import &#123; ServeStaticModule &#125; from &#39;@nestjs/serve-static&#39;;
+import &#123; join &#125; from &#39;path&#39;;
+
+@Module(&#123;
+  imports: [
+    ServeStaticModule.forRoot(&#123;
+      rootPath: join(__dirname, &#39;..&#39;, &#39;client&#39;),
+    &#125;),
+  ],
+  controllers: [AppController],
+  providers: [AppService],
+&#125;)
+export class AppModule &#123;&#125;</code></pre>
+<p>With this in place, build the static website and place its content in the location specified by the <code>rootPath</code> property.</p>
+<h4 appAnchor id="summary"><span>Summary</span></h4>
+<p>A working example is available <a target="_blank" href="https://github.com/nestjs/nest/tree/master/sample/24-serve-static">here</a>.</p>
+
+    </div>

@@ -1,0 +1,13 @@
+<div class="content" #contentReference>
+      <div class="github-links">
+        <a href="https://github.com/nestjs/docs.nestjs.com/edit/master/content/faq/global-prefix.md" aria-label="Suggest Edits" title="Suggest Edits">
+          <i class="material-icons" aria-hidden="true" role="img">mode_edit</i>
+        </a>
+      </div>
+      <h3 id="global-prefix">Global prefix</h3>
+<p>In order to set a prefix for each route registered in the HTTP application at once, you can use the <code>setGlobalPrefix()</code> method of the <code>INestApplication</code> instance.</p>
+<pre><code class="language-typescript">
+const app = await NestFactory.create(ApplicationModule);
+app.setGlobalPrefix(&#39;v1&#39;);</code></pre>
+
+    </div>

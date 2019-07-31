@@ -1,0 +1,63 @@
+<div class="content" #contentReference>
+      <div class="github-links">
+        <a href="https://github.com/nestjs/docs.nestjs.com/edit/master/content/techniques/performance.md" aria-label="Suggest Edits" title="Suggest Edits">
+          <i class="material-icons" aria-hidden="true" role="img">mode_edit</i>
+        </a>
+      </div>
+      <h3 id="performance-fastify">Performance (Fastify)</h3>
+<p>By default, Nest makes use of the <a target="_blank" href="https://expressjs.com/">Express</a> framework. As mentioned earlier, Nest also provides compatibility with other libraries such as, for example, <a target="_blank" href="https://github.com/fastify/fastify">Fastify</a>. Nest achieves this framework independence by implementing a framework adapter whose primary function is to proxy middleware and handlers to appropriate library-specific implementations.</p>
+<blockquote class="
+info "><strong>Hint</strong> Note that in order for a framework adapter to be implemented, the target library has to provide similar request/response pipeline processing as found in Express.
+</blockquote>
+<p><a target="_blank" href="https://github.com/fastify/fastify">Fastify</a> provides a good alternative framework for Nest because it solves design issues in a similar manner to Express. However, fastify is much <strong>faster</strong> than Express, achieving almost two times better benchmarks results. A fair question is why does Nest use Express as the default HTTP provider? The reason is that Express is widely-used, well-known, and has an enormous set of compatible middleware, which is available to Nest users out-of-the-box.</p>
+<p>But since Nest provides framework-independence, you can easily migrate between them. Fastify can be a better choice when you place high value on very fast performance. To utilize Fastify, simply choose the built-in <code>FastifyAdapter</code> as shown in this chapter.</p>
+<h4 appAnchor id="installation"><span>Installation</span></h4>
+<p>First, we need to install the required package:</p>
+<pre><code class="language-bash">
+$ npm i --save @nestjs/platform-fastify</code></pre>
+<h4 appAnchor id="adapter"><span>Adapter</span></h4>
+<p>Once the Fastify platform is installed, we can use the <code>FastifyAdapter</code>.</p>
+<pre><code class="language-typescript">
+// src/main.ts
+import &#123; NestFactory &#125; from &#39;@nestjs/core&#39;;
+import &#123;
+  FastifyAdapter,
+  NestFastifyApplication,
+&#125; from &#39;@nestjs/platform-fastify&#39;;
+import &#123; ApplicationModule &#125; from &#39;./app.module&#39;;
+
+async function bootstrap() &#123;
+  const app = await NestFactory.create&lt;NestFastifyApplication&gt;(
+    ApplicationModule,
+    new FastifyAdapter()
+  );
+  await app.listen(3000);
+&#125;
+bootstrap();</code></pre>
+<p>By default, Fastify listens only on the <code>localhost 127.0.0.1</code> interface (<a target="_blank" href="https://www.fastify.io/docs/latest/Getting-Started/#your-first-server">read more</a>). If you want to accept connections on other hosts, you should specify <code>&#39;0.0.0.0&#39;</code> in the <code>listen()</code> call:</p>
+<pre><code class="language-typescript">
+async function bootstrap() &#123;
+  const app = await NestFactory.create&lt;NestFastifyApplication&gt;(
+    ApplicationModule,
+    new FastifyAdapter()
+  );
+  await app.listen(3000, &#39;0.0.0.0&#39;);
+&#125;</code></pre>
+<h4 appAnchor id="platform-specific-packages"><span>Platform specific packages</span></h4>
+<p>Keep in mind that when you use the <code>FastifyAdapter</code>, Nest uses Fastify as the <strong>HTTP provider</strong>. This means that each recipe that relies on Express may no longer work. You should, instead, use Fastify equivalent packages.</p>
+<h4 appAnchor id="redirect-response"><span>Redirect response</span></h4>
+<p>Fastify handles redirect responses slightly differently than Express. To do a proper redirect with Fastify, return both the status code and the URL, as follows:</p>
+<pre><code class="language-typescript">
+@Get()
+index (@Res() res) &#123;
+  // send 302 redirect to /login
+  res.status(302).redirect(&#39;/login&#39;);
+&#125;</code></pre>
+<h4 appAnchor id="fastify-options"><span>Fastify options</span></h4>
+<p>You can pass options into the Fastify constructor through the <code>FastifyAdapter</code> constructor. For example:</p>
+<pre><code class="language-typescript">
+new FastifyAdapter(&#123; logger: true &#125;);</code></pre>
+<h4 appAnchor id="example"><span>Example</span></h4>
+<p>A working example is available <a target="_blank" href="https://github.com/nestjs/nest/tree/master/sample/10-fastify">here</a>.</p>
+
+    </div>

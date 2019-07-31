@@ -1,0 +1,185 @@
+<div class="content" #contentReference>
+      <div class="github-links">
+        <a href="https://github.com/nestjs/docs.nestjs.com/edit/master/content/techniques/mvc.md" aria-label="Suggest Edits" title="Suggest Edits">
+          <i class="material-icons" aria-hidden="true" role="img">mode_edit</i>
+        </a>
+      </div>
+      <h3 id="model-view-controller">Model-View-Controller</h3>
+<p>Nest, by default, makes use of the <a target="_blank" href="https://github.com/expressjs/express">Express</a> library under the hood. Hence, every technique for using the MVC (Model-View-Controller) pattern in Express applies to Nest as well.</p>
+<p>First, let&#39;s scaffold a simple Nest application using the <a target="_blank" href="https://github.com/nestjs/nest-cli">CLI</a> tool:</p>
+<pre><code class="language-bash">
+$ npm i -g @nestjs/cli
+$ nest new project</code></pre>
+<p>In order to create an MVC app, we also need a <a target="_blank" href="http://expressjs.com/en/guide/using-template-engines.html">template engine</a> to render our HTML views:</p>
+<pre><code class="language-bash">
+$ npm install --save hbs</code></pre>
+<p>We&#39;ve used the <code>hbs</code> (<a target="_blank" href="https://github.com/pillarjs/hbs#readme">Handlebars</a>) engine, though you can use whatever fits your requirements. Once the installation process is complete, we need to configure the express instance using the following code:</p>
+
+<span class="filename">
+  {{ 'main' | extension: appcae3b7aec03c0ed2f2af6006230a3093fa929651.isJsActive }}
+<app-tabs #appcae3b7aec03c0ed2f2af6006230a3093fa929651></app-tabs>
+</span><pre [class.hide]="appcae3b7aec03c0ed2f2af6006230a3093fa929651.isJsActive"><code class="language-typescript">
+import &#123; NestFactory &#125; from &#39;@nestjs/core&#39;;
+import &#123; NestExpressApplication &#125; from &#39;@nestjs/platform-express&#39;;
+import &#123; join &#125; from &#39;path&#39;;
+import &#123; AppModule &#125; from &#39;./app.module&#39;;
+
+async function bootstrap() &#123;
+  const app = await NestFactory.create&lt;NestExpressApplication&gt;(
+    AppModule,
+  );
+
+  app.useStaticAssets(join(__dirname, &#39;..&#39;, &#39;public&#39;));
+  app.setBaseViewsDir(join(__dirname, &#39;..&#39;, &#39;views&#39;));
+  app.setViewEngine(&#39;hbs&#39;);
+
+  await app.listen(3000);
+&#125;
+bootstrap();</code></pre>
+<pre [class.hide]="!appcae3b7aec03c0ed2f2af6006230a3093fa929651.isJsActive"><code class="language-typescript">
+import &#123; NestFactory &#125; from &#39;@nestjs/core&#39;;
+import &#123; join &#125; from &#39;path&#39;;
+import &#123; AppModule &#125; from &#39;./app.module&#39;;
+
+async function bootstrap() &#123;
+  const app = await NestFactory.create(
+    AppModule,
+  );
+
+  app.useStaticAssets(join(__dirname, &#39;..&#39;, &#39;public&#39;));
+  app.setBaseViewsDir(join(__dirname, &#39;..&#39;, &#39;views&#39;));
+  app.setViewEngine(&#39;hbs&#39;);
+
+  await app.listen(3000);
+&#125;
+bootstrap();</code></pre><p>We told <a target="_blank" href="https://github.com/expressjs/express">Express</a> that the <code>public</code> directory will be used for storing static assets, <code>views</code> will contain templates, and the <code>hbs</code> template engine should be used to render HTML output.</p>
+<h4 appAnchor id="template-rendering"><span>Template rendering</span></h4>
+<p>Now, let&#39;s create a <code>views</code> directory and <code>index.hbs</code> template inside it. In the template, we&#39;ll print a <code>message</code> passed from the controller:</p>
+<pre><code class="language-html">
+&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+  &lt;head&gt;
+    &lt;meta charset=&quot;utf-8&quot; /&gt;
+    &lt;title&gt;App&lt;/title&gt;
+  &lt;/head&gt;
+  &lt;body&gt;
+    &#123;&#123; &quot;&#123;&#123; message &#125;\&#125;&quot; &#125;&#125;
+  &lt;/body&gt;
+&lt;/html&gt;</code></pre>
+<p>Next, open the <code>app.controller</code> file and replace the <code>root()</code> method with the following code:</p>
+
+<span class="filename">
+  {{ 'app.controller' | extension: appa6f7026afd194ab30e531867ad154808f2546916.isJsActive }}
+<app-tabs #appa6f7026afd194ab30e531867ad154808f2546916></app-tabs>
+</span><pre><code class="language-typescript">
+import &#123; Get, Controller, Render &#125; from &#39;@nestjs/common&#39;;
+
+@Controller()
+export class AppController &#123;
+  @Get()
+  @Render(&#39;index&#39;)
+  root() &#123;
+    return &#123; message: &#39;Hello world!&#39; &#125;;
+  &#125;
+&#125;</code></pre><p>In this code, we are specifying the template to use in the <code>@Render()</code> decorator, and the return value of the route handler method is passed to the template for rendering. Notice that the return value is an object with a property <code>message</code>, matching the <code>message</code> placeholder we created in the template.</p>
+<p>While the application is running, open your browser and navigate to <code>http://localhost:3000</code>. You should see the <code>Hello world!</code> message.</p>
+<h4 appAnchor id="dynamic-template-rendering"><span>Dynamic template rendering</span></h4>
+<p>If the application logic must dynamically decide which template to render, then we should use the <code>@Res()</code> decorator, and supply the view name in our route handler, rather than in the <code>@Render()</code> decorator:</p>
+<blockquote class="
+info "><strong>Hint</strong> When Nest detects the <code>@Res()</code> decorator, it injects the library-specific <code>response</code> object. We can use this object to dynamically render the template. Learn more about the <code>response</code> object API <a target="_blank" href="http://expressjs.com/en/api.html">here</a>.
+</blockquote>
+
+<span class="filename">
+  {{ 'app.controller' | extension: app6d8aee9236d90cfccb9874635533c98a540344d3.isJsActive }}
+<app-tabs #app6d8aee9236d90cfccb9874635533c98a540344d3></app-tabs>
+</span><pre><code class="language-typescript">
+import &#123; Get, Controller, Render &#125; from &#39;@nestjs/common&#39;;
+import &#123; Response &#125; from &#39;express&#39;;
+import &#123; AppService &#125; from &#39;./app.service&#39;;
+
+@Controller()
+export class AppController &#123;
+  constructor(private readonly appService: AppService) &#123;&#125;
+
+  @Get()
+  root(@Res() res: Response) &#123;
+    return res.render(
+      this.appService.getViewName(),
+      &#123; message: &#39;Hello world!&#39; &#125;,
+    );
+  &#125;
+&#125;</code></pre><h4 appAnchor id="example"><span>Example</span></h4>
+<p>A working example is available <a target="_blank" href="https://github.com/nestjs/nest/tree/master/sample/15-mvc">here</a>.</p>
+<h4 appAnchor id="fastify"><span>Fastify</span></h4>
+<p>As mentioned in this <a target="_blank" href="/techniques/http-performance">chapter</a>, we are able to use any compatible HTTP provider together with Nest. One such library is <a target="_blank" href="https://github.com/fastify/fastify">Fastify</a>. In order to create an MVC application with Fastify, we have to install the following packages:</p>
+<pre><code class="language-bash">
+$ npm i --save fastify point-of-view handlebars</code></pre>
+<p>The next steps cover almost the same process used with Express, with minor differences specific to the platform. Once the installation process is complete, open the <code>main.ts</code> file and update its contents:</p>
+
+<span class="filename">
+  {{ 'main' | extension: app0ab86cb1691f6371c82696b75924e6d876d30e7f.isJsActive }}
+<app-tabs #app0ab86cb1691f6371c82696b75924e6d876d30e7f></app-tabs>
+</span><pre [class.hide]="app0ab86cb1691f6371c82696b75924e6d876d30e7f.isJsActive"><code class="language-typescript">
+import &#123; NestFactory &#125; from &#39;@nestjs/core&#39;;
+import &#123; NestFastifyApplication, FastifyAdapter &#125; from &#39;@nestjs/platform-fastify&#39;;
+import &#123; AppModule &#125; from &#39;./app.module&#39;;
+import &#123; join &#125; from &#39;path&#39;;
+
+async function bootstrap() &#123;
+  const app = await NestFactory.create&lt;NestFastifyApplication&gt;(
+    AppModule,
+    new FastifyAdapter(),
+  );
+  app.useStaticAssets(&#123;
+    root: join(__dirname, &#39;..&#39;, &#39;public&#39;),
+    prefix: &#39;/public/&#39;,
+  &#125;);
+  app.setViewEngine(&#123;
+    engine: &#123;
+      handlebars: require(&#39;handlebars&#39;),
+    &#125;,
+    templates: join(__dirname, &#39;..&#39;, &#39;views&#39;),
+  &#125;);
+  await app.listen(3000);
+&#125;
+bootstrap();</code></pre>
+<pre [class.hide]="!app0ab86cb1691f6371c82696b75924e6d876d30e7f.isJsActive"><code class="language-typescript">
+import &#123; NestFactory &#125; from &#39;@nestjs/core&#39;;
+import &#123; FastifyAdapter &#125; from &#39;@nestjs/platform-fastify&#39;;
+import &#123; AppModule &#125; from &#39;./app.module&#39;;
+import &#123; join &#125; from &#39;path&#39;;
+
+async function bootstrap() &#123;
+  const app = await NestFactory.create(AppModule, new FastifyAdapter());
+  app.useStaticAssets(&#123;
+    root: join(__dirname, &#39;..&#39;, &#39;public&#39;),
+    prefix: &#39;/public/&#39;,
+  &#125;);
+  app.setViewEngine(&#123;
+    engine: &#123;
+      handlebars: require(&#39;handlebars&#39;),
+    &#125;,
+    templates: join(__dirname, &#39;..&#39;, &#39;views&#39;),
+  &#125;);
+  await app.listen(3000);
+&#125;
+bootstrap();</code></pre><p>The Fastify API is slightly different but the end result of those methods calls remains the same. One difference to notice with Fastify is that the template name passed into the <code>@Render()</code> decorator must include a file extension.</p>
+
+<span class="filename">
+  {{ 'app.controller' | extension: app117fcc633e0ac045fb528196ad36522a62cd1fcc.isJsActive }}
+<app-tabs #app117fcc633e0ac045fb528196ad36522a62cd1fcc></app-tabs>
+</span><pre><code class="language-typescript">
+import &#123; Get, Controller, Render &#125; from &#39;@nestjs/common&#39;;
+
+@Controller()
+export class AppController &#123;
+  @Get()
+  @Render(&#39;index.hbs&#39;)
+  root() &#123;
+    return &#123; message: &#39;Hello world!&#39; &#125;;
+  &#125;
+&#125;</code></pre><p>While the application is running, open your browser and navigate to <code>http://localhost:3000</code>. You should see the <code>Hello world!</code> message.</p>
+<h4 appAnchor id="example-1"><span>Example</span></h4>
+<p>A working example is available <a target="_blank" href="https://github.com/nestjs/nest/tree/master/sample/17-mvc-fastify">here</a>.</p>
+
+    </div>

@@ -1,0 +1,24 @@
+
+<div class="content" #contentReference>
+  <div class="github-links">
+    <a
+      href="https://github.com/nestjs/docs.nestjs.com/edit/master/content/faq/hybrid-application.md"
+      aria-label="Suggest Edits"
+      title="Suggest Edits"
+    >
+      <i class="material-icons" aria-hidden="true" role="img">mode_edit</i>
+    </a>
+  </div>
+  <h3 id="hybrid-application">Hybrid application</h3>
+<p>The hybrid application is an application that listens to HTTP requests,as well as makes use of the connected microservices. The <code>INestApplication</code> can be combined with the endless number of the <code>INestMicroservice</code> instances through <code>connectMicroservice()</code> method.</p>
+<pre><code class="language-typescript">
+const app = await NestFactory.create(ApplicationModule);
+const microservice = app.connectMicroservice(&#123;
+  transport: Transport.TCP,
+&#125;);
+
+await app.startAllMicroservicesAsync();
+await app.listen(3001);</code></pre>
+
+</div>
+

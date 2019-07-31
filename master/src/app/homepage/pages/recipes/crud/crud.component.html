@@ -1,0 +1,250 @@
+<div class="content" #contentReference>
+      <div class="github-links">
+        <a href="https://github.com/nestjs/docs.nestjs.com/edit/master/content/recipes/crud.md" aria-label="Suggest Edits" title="Suggest Edits">
+          <i class="material-icons" aria-hidden="true" role="img">mode_edit</i>
+        </a>
+      </div>
+      <h3 id="crud">CRUD</h3>
+<h5 id="this-chapter-applies-only-to-typescript">This chapter applies only to TypeScript</h5>
+<p><a target="_blank" href="https://github.com/nestjsx/crud">CRUD</a> package (<code>@nestjsx/crud</code>) helps you create CRUD controllers and services with ease and provides a bunch of the features for your RESTful API out of the box:</p>
+<ul>
+<li>Database agnostic extendable CRUD controller</li>
+<li>Query string parsing with filtering, pagination, sorting, relations, nested relations, cache, etc.</li>
+<li>Framework agnostic package with query builder for frontend usage</li>
+<li>Query, path params and DTO validation</li>
+<li>Overriding controller methods with ease</li>
+<li>Tiny but powerful configuration (including global configuration)</li>
+<li>Additional helper decorators</li>
+<li>Swagger documentation</li>
+</ul>
+<blockquote class="
+warning "><strong>Notice</strong> So far, <code>@nestjsx/crud</code> only supports <code>TypeORM</code>, but other ORMs like <code>Sequelize</code> and <code>Mongoose</code> will be included in the near future. So in this article, you&#39;ll learn how to create CRUD controllers and services using <code>TypeORM</code>. We assume that you have already successfully installed and set up the <code>@nestjs/typeorm</code> package. To learn more, see <a routerLink="/techniques/sql">here</a>.
+</blockquote>
+<h4 appAnchor id="getting-started"><span>Getting started</span></h4>
+<p>To start creating CRUD functionality we have to install all required dependencies:</p>
+<pre><code class="language-bash">
+npm i --save @nestjsx/crud @nestjsx/crud-typeorm class-transformer class-validator</code></pre>
+<p>Assuming that you already have some <strong>entities</strong> in your project:</p>
+
+<span class="filename">
+  {{ 'hero.entity' | extension: app68640fef9a223d559aa0382b9ad2f7a9fb3c10b1.isJsActive }}
+<app-tabs #app68640fef9a223d559aa0382b9ad2f7a9fb3c10b1></app-tabs>
+</span><pre><code class="language-typescript">
+import &#123; Entity, PrimaryGeneratedColumn, Column &#125; from &#39;typeorm&#39;;
+
+@Entity()
+export class Hero &#123;
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column()
+  name: string;
+
+  @Column(&#123; type: &#39;number&#39; &#125;)
+  power: number;
+&#125;</code></pre><p>The first step we need to do is to create a <strong>service</strong>:</p>
+
+<span class="filename">
+  {{ 'heroes.service' | extension: appa51a30a41055e9c60cebda9db3fc60e84673b988.isJsActive }}
+<app-tabs #appa51a30a41055e9c60cebda9db3fc60e84673b988></app-tabs>
+</span><pre><code class="language-typescript">
+import &#123; Injectable &#125; from &#39;@nestjs/common&#39;;
+import &#123; InjectRepository &#125; from &#39;@nestjs/typeorm&#39;;
+import &#123; TypeOrmCrudService &#125; from &#39;@nestjsx/crud-typeorm&#39;;
+import &#123; Hero &#125; from &#39;./hero.entity&#39;;
+
+@Injectable()
+export class HeroesService extends TypeOrmCrudService&lt;Hero&gt; &#123;
+  constructor(@InjectRepository(Hero) repo) &#123;
+    super(repo);
+  &#125;
+&#125;</code></pre><p>We&#39;re done with the service so let&#39;s create a <strong>controller</strong>:</p>
+
+<span class="filename">
+  {{ 'heroes.controller' | extension: appd2b5a3c65e7855ecc9bad93ad0e4e7a094f4f11e.isJsActive }}
+<app-tabs #appd2b5a3c65e7855ecc9bad93ad0e4e7a094f4f11e></app-tabs>
+</span><pre><code class="language-typescript">
+import &#123; Controller &#125; from &#39;@nestjs/common&#39;;
+import &#123; Crud &#125; from &#39;@nestjsx/crud&#39;;
+import &#123; Hero &#125; from &#39;./hero.entity&#39;;
+import &#123; HeroesService &#125; from &#39;./heroes.service&#39;;
+
+@Crud(&#123;
+  model: &#123;
+    type: Hero,
+  &#125;,
+&#125;)
+@Controller(&#39;heroes&#39;)
+export class HeroesController &#123;
+  constructor(public service: HeroesService) &#123;&#125;
+&#125;</code></pre><p>And finally, we need to wire up everything in our <strong>module</strong>:</p>
+
+<span class="filename">
+  {{ 'heroes.module' | extension: app4e3a4199b3dc1f2be6c962e5def49f5f25f05862.isJsActive }}
+<app-tabs #app4e3a4199b3dc1f2be6c962e5def49f5f25f05862></app-tabs>
+</span><pre><code class="language-typescript">
+import &#123; Module &#125; from &#39;@nestjs/common&#39;;
+import &#123; TypeOrmModule &#125; from &#39;@nestjs/typeorm&#39;;
+
+import &#123; Hero &#125; from &#39;./hero.entity&#39;;
+import &#123; HeroesService &#125; from &#39;./heroes.service&#39;;
+import &#123; HeroesController &#125; from &#39;./heroes.controller&#39;;
+
+@Module(&#123;
+  imports: [TypeOrmModule.forFeature([Hero])],
+  providers: [HeroesService],
+  controllers: [HeroesController],
+&#125;)
+export class HeroesModule &#123;&#125;</code></pre><blockquote class="
+warning "><strong>Notice</strong> Do not forget to import the <code>HeroesModule</code> into the root <code>ApplicationModule</code>.
+</blockquote>
+<p>Afterwards, your Nest application will have these newly created endpoints:</p>
+<ul>
+<li><code>GET /heroes</code> - get many heroes.</li>
+<li><code>GET /heroes/:id</code> - get one hero.</li>
+<li><code>POST /heroes/bulk</code> - create many heroes.</li>
+<li><code>POST /heroes</code> - create one hero.</li>
+<li><code>PATCH /heroes/:id</code> - update one hero.</li>
+<li><code>PUT /heroes/:id</code> - replace one hero.</li>
+<li><code>DELETE /heroes/:id</code> - delete one hero.</li>
+</ul>
+<h4 appAnchor id="filtering-and-pagination"><span>Filtering and pagination</span></h4>
+<p><a target="_blank" href="https://github.com/nestjsx/crud">CRUD</a> provides rich tools for filtering and pagination. Example request:</p>
+<blockquote class="
+info "><strong>Request</strong> GET /heroes?<strong>select</strong>=name&amp;<strong>filter</strong>=power||gt||90&amp;<strong>sort</strong>=name,ASC&amp;<strong>page</strong>=1&amp;<strong>limit</strong>=3
+</blockquote>
+<p>In this example, we requested the list of heroes and selected <code>name</code> attribute only, where the <code>power</code> of a hero is greater than 90, and set a result limit to 3 within page 1, and sorted by <code>name</code> in <code>ASC</code> order.</p>
+<p>The response object will be similar to this one:</p>
+<pre><code class="language-json">
+&#123;
+  &quot;data&quot;: [
+    &#123;
+      &quot;id&quot;: 2,
+      &quot;name&quot;: &quot;Batman&quot;
+    &#125;,
+    &#123;
+      &quot;id&quot;: 4,
+      &quot;name&quot;: &quot;Flash&quot;
+    &#125;,
+    &#123;
+      &quot;id&quot;: 3,
+      &quot;name&quot;: &quot;Superman&quot;
+    &#125;
+  ],
+  &quot;count&quot;: 3,
+  &quot;total&quot;: 14,
+  &quot;page&quot;: 1,
+  &quot;pageCount&quot;: 5
+&#125;</code></pre>
+<blockquote class="
+warning "><strong>Notice</strong> Primary columns persist in the resource response object whether they were requested or not. In our case, it&#39;s an <code>id</code> column.
+</blockquote>
+<p>The complete list of query params and filter operators can be found in the project&#39;s <a target="_blank" href="https://github.com/nestjsx/crud/wiki/Requests">Wiki</a>.</p>
+<h4 appAnchor id="relations"><span>Relations</span></h4>
+<p>Another feature that is worth mentioning is &quot;relations&quot;. In your CRUD controller, you can specify the list of entity&#39;s relations which are allowed to fetch within your API calls:</p>
+<pre><code class="language-typescript">
+@Crud(&#123;
+  model: &#123;
+    type: Hero,
+  &#125;,
+  join: &#123;
+    profile: &#123;
+      exclude: [&#39;secret&#39;],
+    &#125;,
+    faction: &#123;
+      eager: true,
+      only: [&#39;name&#39;],
+    &#125;,
+  &#125;,
+&#125;)
+@Controller(&#39;heroes&#39;)
+export class HeroesController &#123;
+  constructor(public service: HeroesService) &#123;&#125;
+&#125;</code></pre>
+<p>After specifying allowed relations in the <code>@Crud()</code> decorator options, you can make the following request:</p>
+<blockquote class="
+info "><strong>Request</strong> GET /heroes/25?<strong>join</strong>=profile||address,bio
+</blockquote>
+<p>The response will contain a hero object with a joined profile which will have <code>address</code> and <code>bio</code> columns selected.</p>
+<p>Also, the response will contain a <code>faction</code> object with the <code>name</code> column selected because it was set to <code>eager: true</code> and thus persists in every response.</p>
+<p>You can find more information about relations in the project&#39;s <a target="_blank" href="https://github.com/nestjsx/crud/wiki/Controllers#join">WiKi</a>.</p>
+<h4 appAnchor id="path-params-validation"><span>Path params validation</span></h4>
+<p>By default, <a target="_blank" href="https://github.com/nestjsx/crud">CRUD</a> will create a slug with the name <code>id</code> and will be validating it as a <code>number</code>. </p>
+<p>But there is a possibility to change this behavior. Assume, your entity has a primary column <code>_id</code> - a UUID string - and you need to use it as a slug for your endpoints. With these options it&#39;s easy to do:</p>
+<pre><code class="language-typescript">
+@Crud(&#123;
+  model: &#123;
+    type: Hero,
+  &#125;,
+  params: &#123;
+    _id: &#123;
+      field: &#39;_id&#39;,
+      type: &#39;uuid&#39;,
+      primary: true,
+    &#125;,
+  &#125;,
+&#125;)
+@Controller(&#39;heroes&#39;)
+export class HeroesController &#123;
+  constructor(public service: HeroesService) &#123;&#125;
+&#125;</code></pre>
+<p>For more params options please see the project&#39;s <a target="_blank" href="https://github.com/nestjsx/crud/wiki/Controllers#params">Wiki</a>.</p>
+<h4 appAnchor id="request-body-validation"><span>Request body validation</span></h4>
+<p>Request body validation is performed out of the box by applying Nest <code>ValidationPipe</code> on each POST, PUT, PATCH request. We use <code>model.type</code> from <code>@Crud()</code> decorator options as a DTO that describes validation rules.</p>
+<p>In order to do that properly we use <a target="_blank" href="https://github.com/typestack/class-validator#validation-groups">validation groups</a>:</p>
+
+<span class="filename">
+  {{ 'hero.entity' | extension: app172e76720301f7597723ec2e9382b0736b670b00.isJsActive }}
+<app-tabs #app172e76720301f7597723ec2e9382b0736b670b00></app-tabs>
+</span><pre><code class="language-typescript">
+import &#123; Entity, PrimaryGeneratedColumn, Column &#125; from &#39;typeorm&#39;;
+import &#123; IsOptional, IsDefined, IsString, IsNumber &#125; from &#39;class-validator&#39;;
+import &#123; CrudValidationGroups &#125; from &#39;@nestjsx/crud&#39;;
+
+const &#123; CREATE, UPDATE &#125; = CrudValidationGroups;
+
+@Entity()
+export class Hero &#123;
+  @IsOptional(&#123; always: true &#125;)
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @IsOptional(&#123; groups: [UPDATE] &#125;)
+  @IsDefined(&#123; groups: [CREATE] &#125;)
+  @IsString(&#123; always: true &#125;)
+  @Column()
+  name: string;
+
+  @IsOptional(&#123; groups: [UPDATE] &#125;)
+  @IsDefined(&#123; groups: [CREATE] &#125;)
+  @IsNumber(&#123;&#125;, &#123; always: true &#125;)
+  @Column(&#123; type: &#39;number&#39; &#125;)
+  power: number;
+&#125;</code></pre><blockquote class="
+warning "><strong>Notice</strong> The full support of separate DTO classes for <code>create</code> and <code>update</code> actions is one of the main priorities for the next <a target="_blank" href="https://github.com/nestjsx/crud">CRUD</a> release.
+</blockquote>
+<h4 appAnchor id="routes-options"><span>Routes options</span></h4>
+<p>You can disable or enable only some particular routes that are being generated by applying <code>@Crud()</code> decorator:</p>
+<pre><code class="language-typescript">
+@Crud(&#123;
+  model: &#123;
+    type: Hero,
+  &#125;,
+  routes: &#123;
+    only: [&#39;getManyBase&#39;],
+    getManyBase: &#123;
+      decorators: [
+        UseGuards(HeroAuthGuard)
+      ]
+    &#125;
+  &#125;
+&#125;)
+@Controller(&#39;heroes&#39;)
+export class HeroesController &#123;
+  constructor(public service: HeroesService) &#123;&#125;
+&#125;</code></pre>
+<p>Also, you can apply any method decorators by passing them to the specific route <code>decorators</code> array. This is convenient when you want to add some decorators without overriding base methods.</p>
+<h4 appAnchor id="documentation"><span>Documentation</span></h4>
+<p>The examples in this chapter cover only some of the <a target="_blank" href="https://github.com/nestjsx/crud">CRUD</a> features. You can find answers to many more usage questions on the project&#39;s <a target="_blank" href="https://github.com/nestjsx/crud/wiki/Home">Wiki</a> page.</p>
+
+    </div>

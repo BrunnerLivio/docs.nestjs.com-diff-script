@@ -1,0 +1,183 @@
+<div class="content" #contentReference>
+      <div class="github-links">
+        <a href="https://github.com/nestjs/docs.nestjs.com/edit/master/content/components.md" aria-label="Suggest Edits" title="Suggest Edits">
+          <i class="material-icons" aria-hidden="true" role="img">mode_edit</i>
+        </a>
+      </div>
+      <h3 id="providers">Providers</h3>
+<p>Providers are a fundamental concept in Nest. Many of the basic Nest classes may be treated as a provider – services, repositories, factories, helpers, and so on. The main idea of a provider is that it can <strong>inject</strong> dependencies; this means objects can create various relationships with each other, and the function of &quot;wiring up&quot; instances of objects can largely be delegated to the Nest runtime system. A provider is simply a class annotated with an <code>@Injectable()</code> decorator.</p>
+<figure><img src="/assets/Components_1.png" /></figure>
+
+<p>In the previous chapter, we built a simple <code>CatsController</code>. Controllers should handle HTTP requests and delegate more complex tasks to <strong>providers</strong>. Providers are plain JavaScript classes with an <code>@Injectable()</code> decorator preceding their class declaration.</p>
+<blockquote class="
+info "><strong>Hint</strong> Since Nest enables the possibility to design and organize dependencies in a more OO-way, we strongly recommend following the <a target="_blank" href="https://en.wikipedia.org/wiki/SOLID">SOLID</a> principles.
+</blockquote>
+<h4 appAnchor id="services"><span>Services</span></h4>
+<p>Let&#39;s start by creating a simple <code>CatsService</code>. This service will be responsible for data storage and retrieval, and is designed to be used by the <code>CatsController</code>, so it&#39;s a good candidate to be defined as a provider. Thus, we decorate the class with <code>@Injectable()</code>.</p>
+
+<span class="filename">
+  {{ 'cats.service' | extension: app701829bfb290a0b21a9368198c333ce36d565995.isJsActive }}
+<app-tabs #app701829bfb290a0b21a9368198c333ce36d565995></app-tabs>
+</span><pre [class.hide]="app701829bfb290a0b21a9368198c333ce36d565995.isJsActive"><code class="language-typescript">
+import &#123; Injectable &#125; from &#39;@nestjs/common&#39;;
+import &#123; Cat &#125; from &#39;./interfaces/cat.interface&#39;;
+
+@Injectable()
+export class CatsService &#123;
+  private readonly cats: Cat[] = [];
+
+  create(cat: Cat) &#123;
+    this.cats.push(cat);
+  &#125;
+
+  findAll(): Cat[] &#123;
+    return this.cats;
+  &#125;
+&#125;</code></pre>
+<pre [class.hide]="!app701829bfb290a0b21a9368198c333ce36d565995.isJsActive"><code class="language-typescript">
+import &#123; Injectable &#125; from &#39;@nestjs/common&#39;;
+
+@Injectable()
+export class CatsService &#123;
+  constructor() &#123;
+    this.cats = [];
+  &#125;
+
+  create(cat) &#123;
+    this.cats.push(cat);
+  &#125;
+
+  findAll() &#123;
+    return this.cats;
+  &#125;
+&#125;</code></pre><blockquote class="
+info "><strong>Hint</strong> To create a service using the CLI, simply execute the <code>$ nest g service cats</code> command.
+</blockquote>
+<p>Our <code>CatsService</code> is a basic class with one property and two methods. The only new feature is that it uses the <code>@Injectable()</code> decorator. The <code>@Injectable()</code> decorator attaches metadata, which tells Nest that this class is a Nest provider. By the way, this example also uses a <code>Cat</code> interface, which probably looks something like this:</p>
+<pre><code class="language-typescript">
+export interface Cat &#123;
+  name: string;
+  age: number;
+  breed: string;
+&#125;</code></pre>
+<p>Now that we have a service class to retrieve cats, let&#39;s use it inside the <code>CatsController</code>:</p>
+
+<span class="filename">
+  {{ 'cats.controller' | extension: app1c9b7be73dcda8790092899d4fd1305ce837b45a.isJsActive }}
+<app-tabs #app1c9b7be73dcda8790092899d4fd1305ce837b45a></app-tabs>
+</span><pre [class.hide]="app1c9b7be73dcda8790092899d4fd1305ce837b45a.isJsActive"><code class="language-typescript">
+import &#123; Controller, Get, Post, Body &#125; from &#39;@nestjs/common&#39;;
+import &#123; CreateCatDto &#125; from &#39;./dto/create-cat.dto&#39;;
+import &#123; CatsService &#125; from &#39;./cats.service&#39;;
+import &#123; Cat &#125; from &#39;./interfaces/cat.interface&#39;;
+
+@Controller(&#39;cats&#39;)
+export class CatsController &#123;
+  constructor(private readonly catsService: CatsService) &#123;&#125;
+
+  @Post()
+  async create(@Body() createCatDto: CreateCatDto) &#123;
+    this.catsService.create(createCatDto);
+  &#125;
+
+  @Get()
+  async findAll(): Promise&lt;Cat[]&gt; &#123;
+    return this.catsService.findAll();
+  &#125;
+&#125;</code></pre>
+<pre [class.hide]="!app1c9b7be73dcda8790092899d4fd1305ce837b45a.isJsActive"><code class="language-typescript">
+import &#123; Controller, Get, Post, Body, Bind, Dependencies &#125; from &#39;@nestjs/common&#39;;
+import &#123; CatsService &#125; from &#39;./cats.service&#39;;
+
+@Controller(&#39;cats&#39;)
+@Dependencies(CatsService)
+export class CatsController &#123;
+  constructor(catsService) &#123;
+    this.catsService = catsService;
+  &#125;
+
+  @Post()
+  @Bind(Body())
+  async create(createCatDto) &#123;
+    this.catsService.create(createCatDto);
+  &#125;
+
+  @Get()
+  async findAll() &#123;
+    return this.catsService.findAll();
+  &#125;
+&#125;</code></pre><p>The <code>CatsService</code> is <strong>injected</strong> through the class constructor. Notice the use of the <code>private readonly</code> syntax. This shorthand allows us to both declare and initialize the <code>catsService</code> member immediately in the same location.</p>
+<h4 appAnchor id="dependency-injection"><span>Dependency injection</span></h4>
+<p>Nest is built around the strong design pattern commonly known as <strong>Dependency injection</strong>. We recommend reading a great article about this concept in the official <a target="_blank" href="https://angular.io/guide/dependency-injection">Angular</a> documentation.</p>
+<p>In Nest, thanks to TypeScript capabilities, it&#39;s extremely easy to manage dependencies because they are resolved just by type. In the example below, Nest will resolve the <code>catsService</code> by creating and returning an instance of <code>CatsService</code> (or, in the normal case of a singleton, returning the existing instance if it has already been requested elsewhere). This dependency is resolved and passed to your controller&#39;s constructor (or assigned to the indicated property):</p>
+<pre><code class="language-typescript">
+constructor(private readonly catsService: CatsService) &#123;&#125;</code></pre>
+<h4 appAnchor id="scopes"><span>Scopes</span></h4>
+<p>Providers normally have a lifetime (&#39;scope&#39;) synchronized with the application lifecycle. When the application is bootstrapped, every dependency must be resolved, and therefore every provider has to be instantiated. Similarly, when the application shuts down, each provider will be destroyed. However, there are ways to make your provider lifetime <strong>request-scoped</strong> as well. You can read more about these techniques <a routerLink="/fundamentals/injection-scopes">here</a>.</p>
+<h4 appAnchor id="custom-providers"><span>Custom providers</span></h4>
+<p>Nest has a built-in inversion of control (&quot;IoC&quot;) container that resolves relationships between providers. This feature underlies the dependency injection feature described above, but is in fact far more powerful than what we&#39;ve described so far. The <code>@Injectable()</code> decorator is only the tip of the iceberg, and is not the only way to define providers. In fact, you can use plain values, classes, and either asynchronous or synchronous factories. More examples are provided <a routerLink="/fundamentals/dependency-injection">here</a>.</p>
+<h4 appAnchor id="optional-providers"><span>Optional providers</span></h4>
+<p>Occasionally, you might have dependencies which do not necessarily have to be resolved. For instance, your class may depend on a <strong>configuration object</strong>, but if none is passed, the default values should be used. In such a case, the dependency becomes optional, because lack of the configuration provider wouldn&#39;t lead to errors.</p>
+<p>To indicate a provider is optional , use the <code>@Optional()</code> decorator in the <code>constructor</code> signature.</p>
+<pre><code class="language-typescript">
+import &#123; Injectable, Optional, Inject &#125; from &#39;@nestjs/common&#39;;
+
+@Injectable()
+export class HttpService&lt;T&gt; &#123;
+  constructor(
+    @Optional() @Inject(&#39;HTTP_OPTIONS&#39;) private readonly httpClient: T
+  ) &#123;&#125;
+&#125;</code></pre>
+<p>Note, in the example above we are using a custom provider, which is the reason we include the <code>HTTP_OPTIONS</code> custom <strong>token</strong>. Previous examples showed constructor-based injection indicating a dependency through a class in the constructor. Read more about custom providers and their associated tokens <a routerLink="/fundamentals/custom-providers">here</a>.</p>
+<h4 appAnchor id="property-based-injection"><span>Property-based injection</span></h4>
+<p>The technique we&#39;ve used so far is called constuctor-based injection, as providers are injected via the constructor method. In some very specific cases, <strong>property-based injection</strong> might be useful. For instance, if your top-level class depends on either one or multiple providers, passing them all the way up by calling <code>super()</code> in sub-classes from the constructor can be very tedious. In order to avoid this, you can use the <code>@Inject()</code> decorator at the property level.</p>
+<pre><code class="language-typescript">
+import &#123; Injectable, Inject &#125; from &#39;@nestjs/common&#39;;
+
+@Injectable()
+export class HttpService&lt;T&gt; &#123;
+  @Inject(&#39;HTTP_OPTIONS&#39;)
+  private readonly httpClient: T;
+&#125;</code></pre>
+<blockquote class="
+warning "><strong>Warning</strong> If your class doesn&#39;t extend another provider, you should always prefer using <strong>constructor-based</strong> injection.
+</blockquote>
+<h4 appAnchor id="provider-registration"><span>Provider registration</span></h4>
+<p>Now that we have defined a provider (<code>CatsService</code>), and we have a consumer of that service (<code>CatsController</code>), we need to register the service with Nest so that it can perform the injection. We do this by editing our module file (<code>app.module.ts</code>) and adding the service to the <code>providers</code> array of the <code>@Module()</code> decorator.</p>
+
+<span class="filename">
+  {{ 'app.module' | extension: app1cf082acc5605cb54cccb666f013adbf7f2b0865.isJsActive }}
+<app-tabs #app1cf082acc5605cb54cccb666f013adbf7f2b0865></app-tabs>
+</span><pre><code class="language-typescript">
+import &#123; Module &#125; from &#39;@nestjs/common&#39;;
+import &#123; CatsController &#125; from &#39;./cats/cats.controller&#39;;
+import &#123; CatsService &#125; from &#39;./cats/cats.service&#39;;
+
+@Module(&#123;
+  controllers: [CatsController],
+  providers: [CatsService],
+&#125;)
+export class AppModule &#123;&#125;</code></pre><p>Nest will now be able to resolve the dependencies of the <code>CatsController</code> class.</p>
+<p>This is how our directory structure should look now:</p>
+<div class="file-tree">
+<div class="item">src</div>
+<div class="children">
+<div class="item">cats</div>
+<div class="children">
+<div class="item">dto</div>
+<div class="children">
+<div class="item">create-cat.dto.ts</div>
+</div>
+<div class="item">interfaces</div>
+<div class="children">
+<div class="item">cat.interface.ts</div>
+</div>
+<div class="item">cats.service.ts</div>
+<div class="item">cats.controller.ts</div>
+</div>
+<div class="item">app.module.ts</div>
+<div class="item">main.ts</div>
+</div>
+</div>
+
+    </div>

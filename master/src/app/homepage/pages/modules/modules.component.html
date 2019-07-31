@@ -1,0 +1,233 @@
+<div class="content" #contentReference>
+      <div class="github-links">
+        <a href="https://github.com/nestjs/docs.nestjs.com/edit/master/content/modules.md" aria-label="Suggest Edits" title="Suggest Edits">
+          <i class="material-icons" aria-hidden="true" role="img">mode_edit</i>
+        </a>
+      </div>
+      <h3 id="modules">Modules</h3>
+<p>A module is a class annotated with a <code>@Module()</code> decorator. The <code>@Module()</code> decorator provides metadata that <strong>Nest</strong> makes use of to organize the application structure.</p>
+<figure><img src="/assets/Modules_1.png" /></figure>
+
+<p>Each application has at least one module, a <strong>root module</strong>. The root module is the starting point Nest uses to build the <strong>application graph</strong> - the internal data structure Nest uses to resolve module and provider relationships and dependencies. While very small applications may theoretically have just the root module, this is not the typical case. We want to emphasize that modules are <strong>strongly</strong> recommended as an effective way to organize your components. Thus, for most applications, the resulting architecture will employ multiple modules, each encapsulating a closely related set of <strong>capabilities</strong>.</p>
+<p>The <code>@Module()</code> decorator takes a single object whose properties describe the module:</p>
+<table>
+  <tr>
+    <td><code>providers</code></td>
+    <td>the providers that will be instantiated by the Nest injector and that may be shared at least across this module</td>
+  </tr>
+  <tr>
+    <td><code>controllers</code></td>
+    <td>the set of controllers defined in this module which have to be instantiated</td>
+  </tr>
+  <tr>
+    <td><code>imports</code></td>
+    <td>the list of imported modules that export the providers which are required in this module</td>
+  </tr>
+  <tr>
+    <td><code>exports</code></td>
+    <td>the subset of <code>providers</code> that are provided by this module and should be available in other modules which import this module</td>
+  </tr>
+</table>
+
+<p>The module <strong>encapsulates</strong> providers by default. This means that it&#39;s impossible to inject providers that are neither directly part of the current module nor exported from the imported modules. Thus, you may consider the exported providers from a module as the module&#39;s public interface, or API.</p>
+<h4 appAnchor id="feature-modules"><span>Feature modules</span></h4>
+<p>The <code>CatsController</code> and <code>CatsService</code> belong to the same application domain. As they are closely related, it makes sense to move them into a feature module. A feature module simply organizes code relevant for a specific feature, keeping code organized and establishing clear boundaries. This helps us manage complexity and develop with <a target="_blank" href="https://en.wikipedia.org/wiki/SOLID">SOLID</a> principles, especially as the size of the application and/or team grow.</p>
+<p>To demonstrate this, we&#39;ll create the <code>CatsModule</code>.</p>
+
+<span class="filename">
+  {{ 'cats/cats.module' | extension: appeef7485d0b31048439344a0c2e662a25df2c14c4.isJsActive }}
+<app-tabs #appeef7485d0b31048439344a0c2e662a25df2c14c4></app-tabs>
+</span><pre><code class="language-typescript">
+import &#123; Module &#125; from &#39;@nestjs/common&#39;;
+import &#123; CatsController &#125; from &#39;./cats.controller&#39;;
+import &#123; CatsService &#125; from &#39;./cats.service&#39;;
+
+@Module(&#123;
+  controllers: [CatsController],
+  providers: [CatsService],
+&#125;)
+export class CatsModule &#123;&#125;</code></pre><blockquote class="
+info "><strong>Hint</strong> To create a module using the CLI, simply execute the <code>$ nest g module cats</code> command.
+</blockquote>
+<p>Above, we defined the <code>CatsModule</code> in the <code>cats.module.ts</code> file, and moved everything related to this module into the <code>cats</code> directory. The last thing we need to do is import this module into the root module (the <code>AppModule</code>, defined in the <code>app.module.ts</code> file).</p>
+
+<span class="filename">
+  {{ 'app.module' | extension: app0431c90585b35760e90fc5984e7eb341871c8493.isJsActive }}
+<app-tabs #app0431c90585b35760e90fc5984e7eb341871c8493></app-tabs>
+</span><pre><code class="language-typescript">
+import &#123; Module &#125; from &#39;@nestjs/common&#39;;
+import &#123; CatsModule &#125; from &#39;./cats/cats.module&#39;;
+
+@Module(&#123;
+  imports: [CatsModule],
+&#125;)
+export class AppModule &#123;&#125;</code></pre><p>Here is how our directory structure looks now:</p>
+<div class="file-tree">
+  <div class="item">src</div>
+  <div class="children">
+    <div class="item">cats</div>
+    <div class="children">
+      <div class="item">dto</div>
+      <div class="children">
+        <div class="item">create-cat.dto.ts</div>
+      </div>
+      <div class="item">interfaces</div>
+      <div class="children">
+        <div class="item">cat.interface.ts</div>
+      </div>
+      <div class="item">cats.service.ts</div>
+      <div class="item">cats.controller.ts</div>
+      <div class="item">cats.module.ts</div>
+    </div>
+    <div class="item">app.module.ts</div>
+    <div class="item">main.ts</div>
+  </div>
+</div>
+
+<h4 appAnchor id="shared-modules"><span>Shared modules</span></h4>
+<p>In Nest, modules are <strong>singletons</strong> by default, and thus you can share the same instance of any provider between multiple modules effortlessly.</p>
+<figure><img src="/assets/Shared_Module_1.png" /></figure>
+
+<p>Every module is automatically a <strong>shared module</strong>. Once created it can be reused by any module. Let&#39;s imagine that we want to share an instance of the <code>CatsService</code> between several other modules. In order to do that, we first need to <strong>export</strong> the <code>CatsService</code> provider by adding it to the module&#39;s <code>exports</code> array, as shown below:</p>
+
+<span class="filename">
+  {{ 'cats.module' | extension: app3d12179deb769cd5858e35d612a0f477fe8b2ad8.isJsActive }}
+<app-tabs #app3d12179deb769cd5858e35d612a0f477fe8b2ad8></app-tabs>
+</span><pre><code class="language-typescript">
+import &#123; Module &#125; from &#39;@nestjs/common&#39;;
+import &#123; CatsController &#125; from &#39;./cats.controller&#39;;
+import &#123; CatsService &#125; from &#39;./cats.service&#39;;
+
+@Module(&#123;
+  controllers: [CatsController],
+  providers: [CatsService],
+  exports: [CatsService]
+&#125;)
+export class CatsModule &#123;&#125;</code></pre><p>Now any module that imports the <code>CatsModule</code> has access to the <code>CatsService</code> and will share the same instance with all other modules that import it as well.</p>
+<h4 appAnchor id="module-re-exporting"><span>Module re-exporting</span></h4>
+<p>As seen above, Modules can export their internal providers. In addition, they can re-export modules that they import. In the example below, the <code>CommonModule</code> is both imported into <strong>and</strong> exported from the <code>CoreModule</code>, making it available for other modules which import this one.</p>
+<pre><code class="language-typescript">
+@Module(&#123;
+  imports: [CommonModule],
+  exports: [CommonModule],
+&#125;)
+export class CoreModule &#123;&#125;</code></pre>
+<h4 appAnchor id="dependency-injection"><span>Dependency injection</span></h4>
+<p>A module class can <strong>inject</strong> providers as well (e.g., for configuration purposes):</p>
+
+<span class="filename">
+  {{ 'cats.module' | extension: app4d731be6fbf25c7325ae84e5924d0d58d2dbe98a.isJsActive }}
+<app-tabs #app4d731be6fbf25c7325ae84e5924d0d58d2dbe98a></app-tabs>
+</span><pre [class.hide]="app4d731be6fbf25c7325ae84e5924d0d58d2dbe98a.isJsActive"><code class="language-typescript">
+import &#123; Module &#125; from &#39;@nestjs/common&#39;;
+import &#123; CatsController &#125; from &#39;./cats.controller&#39;;
+import &#123; CatsService &#125; from &#39;./cats.service&#39;;
+
+@Module(&#123;
+  controllers: [CatsController],
+  providers: [CatsService],
+&#125;)
+export class CatsModule &#123;
+  constructor(private readonly catsService: CatsService) &#123;&#125;
+&#125;</code></pre>
+<pre [class.hide]="!app4d731be6fbf25c7325ae84e5924d0d58d2dbe98a.isJsActive"><code class="language-typescript">
+import &#123; Module, Dependencies &#125; from &#39;@nestjs/common&#39;;
+import &#123; CatsController &#125; from &#39;./cats.controller&#39;;
+import &#123; CatsService &#125; from &#39;./cats.service&#39;;
+
+@Module(&#123;
+  controllers: [CatsController],
+  providers: [CatsService],
+&#125;)
+@Dependencies(CatsService)
+export class CatsModule &#123;
+  constructor(catsService) &#123;
+    this.catsService = catsService;
+  &#125;
+&#125;</code></pre><p>However, module classes themselves cannot be injected as providers due to <a routerLink="/fundamentals/circular-dependency">circular dependency</a> .</p>
+<h4 appAnchor id="global-modules"><span>Global modules</span></h4>
+<p>If you have to import the same set of modules everywhere, it can get tedious. Unlike in Nest, <a target="_blank" href="https://angular.io">Angular</a> <code>providers</code> are registered in the global scope. Once defined, they&#39;re available everywhere. Nest, however, encapsulates providers inside the module scope. You aren&#39;t able to use a module&#39;s providers elsewhere without first importing the encapsulating module.</p>
+<p>When you want to provide a set of providers which should be available everywhere out-of-the-box (e.g., helpers, database connections, etc.), make the module <strong>global</strong> with the <code>@Global()</code> decorator.</p>
+<pre><code class="language-typescript">
+import &#123; Module, Global &#125; from &#39;@nestjs/common&#39;;
+import &#123; CatsController &#125; from &#39;./cats.controller&#39;;
+import &#123; CatsService &#125; from &#39;./cats.service&#39;;
+
+@Global()
+@Module(&#123;
+  controllers: [CatsController],
+  providers: [CatsService],
+  exports: [CatsService],
+&#125;)
+export class CatsModule &#123;&#125;</code></pre>
+<p>The <code>@Global()</code> decorator makes the module global-scoped. Global modules should be registered <strong>only once</strong>, generally by the root or core module. In the above example, the <code>CatsService</code> provider will be ubiquitous, and modules that wish to inject the service will not need to import the <code>CatsModule</code> in their imports array.</p>
+<blockquote class="
+info "><strong>Hint</strong> Making everything global is not a good design decision. Global modules are available to reduce the amount of necessary boilerplate. The <code>imports</code> array is generally the preferred way to make the module&#39;s API available to consumers.
+</blockquote>
+<h4 appAnchor id="dynamic-modules"><span>Dynamic modules</span></h4>
+<p>The Nest module system includes a feature called <strong>dynamic modules</strong>. This feature enables you to easily create customizable modules. Following is an example of such a dynamic module, a <code>DatabaseModule</code>:</p>
+
+<span class="filename">
+<app-tabs #app5c94247376951537428bcf00bbbb780fd93ccfa0></app-tabs>
+</span><pre [class.hide]="app5c94247376951537428bcf00bbbb780fd93ccfa0.isJsActive"><code class="language-typescript">
+import &#123; Module, DynamicModule &#125; from &#39;@nestjs/common&#39;;
+import &#123; createDatabaseProviders &#125; from &#39;./database.providers&#39;;
+import &#123; Connection &#125; from &#39;./connection.provider&#39;;
+
+@Module(&#123;
+  providers: [Connection],
+&#125;)
+export class DatabaseModule &#123;
+  static forRoot(entities = [], options?): DynamicModule &#123;
+    const providers = createDatabaseProviders(options, entities);
+    return &#123;
+      module: DatabaseModule,
+      providers: providers,
+      exports: providers,
+    &#125;;
+  &#125;
+&#125;</code></pre>
+<pre [class.hide]="!app5c94247376951537428bcf00bbbb780fd93ccfa0.isJsActive"><code class="language-typescript">
+import &#123; Module &#125; from &#39;@nestjs/common&#39;;
+import &#123; createDatabaseProviders &#125; from &#39;./database.providers&#39;;
+import &#123; Connection &#125; from &#39;./connection.provider&#39;;
+
+@Module(&#123;
+  providers: [Connection],
+&#125;)
+export class DatabaseModule &#123;
+  static forRoot(entities = [], options?) &#123;
+    const providers = createDatabaseProviders(options, entities);
+    return &#123;
+      module: DatabaseModule,
+      providers: providers,
+      exports: providers,
+    &#125;;
+  &#125;
+&#125;</code></pre><blockquote class="
+info "><strong>Hint</strong> The <code>forRoot()</code> method may return a dynamic module either synchronously or asynchronously (i.e., via a <code>Promise</code>).
+</blockquote>
+<p>This module defines the <code>Connection</code> provider by default, but additionally - depending on the <code>entities</code> and <code>options</code> objects passed to it - exposes a collection of providers, for example, repositories. Note that the dynamic module <strong>extends</strong> (rather than overrides) the base module metadata. That&#39;s how both the statically declared <code>Connection</code> provider <strong>and</strong> the dynamically configured repository providers are exported from the module.</p>
+<p>This substantial feature is useful when you need to register and configure providers dynamically. Once defined in this way, the <code>DatabaseModule</code> can be imported and configured in the following manner:</p>
+<pre><code class="language-typescript">
+import &#123; Module &#125; from &#39;@nestjs/common&#39;;
+import &#123; DatabaseModule &#125; from &#39;./database/database.module&#39;;
+import &#123; User &#125; from &#39;./users/entities/user.entity&#39;;
+
+@Module(&#123;
+  imports: [DatabaseModule.forRoot([User])],
+&#125;)
+export class AppModule &#123;&#125;</code></pre>
+<p>If you want to in turn re-export a dynamic module, you can omit the <code>forRoot()</code> method call in the exports array:</p>
+<pre><code class="language-typescript">
+import &#123; Module &#125; from &#39;@nestjs/common&#39;;
+import &#123; DatabaseModule &#125; from &#39;./database/database.module&#39;;
+import &#123; User &#125; from &#39;./users/entities/user.entity&#39;;
+
+@Module(&#123;
+  imports: [DatabaseModule.forRoot([User])],
+  exports: [DatabaseModule],
+&#125;)
+export class AppModule &#123;&#125;</code></pre>
+
+    </div>
